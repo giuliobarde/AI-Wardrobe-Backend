@@ -1,19 +1,22 @@
+import os
+from dotenv import load_dotenv
 from huggingface_hub import InferenceClient
 from langchain_core.messages import HumanMessage, SystemMessage
 
-# Set your Hugging Face API token
-huggingfacehub_api_token = ""
+# Load environment variables
+load_dotenv()
+huggingfacehub_api_token = os.getenv("HUGGINGFACEHUB_API_TOKEN")
 
 # Initialize the Hugging Face Inference Client
 client = InferenceClient(model="HuggingFaceH4/zephyr-7b-beta", token=huggingfacehub_api_token)
 
-# Define the input messages
+# Define input messages
 messages = [
     SystemMessage(content="You're a helpful assistant."),
     HumanMessage(content="What happens when an unstoppable force meets an immovable object?"),
 ]
 
-# Format the messages into a single string (Zephyr-7B is not a chat model)
+# Format the messages into a single string
 input_text = f"{messages[0].content}\n{messages[1].content}"
 
 # Get the model's response
