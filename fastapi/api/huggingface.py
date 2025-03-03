@@ -10,7 +10,7 @@ huggingfacehub_api_token = os.getenv("HUGGINGFACEHUB_API_TOKEN")
 # Initialize the Hugging Face Inference Client
 client = InferenceClient(model="HuggingFaceH4/zephyr-7b-beta", token=huggingfacehub_api_token)
 
-def genearateOutfit(user_message: str, temp: str) -> str:
+def generateOutfit(user_message: str, temp: str) -> str:
     """
     Function to generate a response using Hugging Face API.
     
