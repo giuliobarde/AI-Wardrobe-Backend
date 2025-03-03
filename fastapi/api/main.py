@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from huggingface import genearateOutfit
 from fastapi.middleware.cors import CORSMiddleware
@@ -78,3 +78,31 @@ async def add_user_preference(pref: UserPreferencce):
     if error:
         return {"error": error}
     return {"messaga": "User preference added", "data": data}
+
+class User(BaseModel):
+    email: str
+    password: str
+
+# Sing up user
+@app.post("/sign-up/")
+async def sign_up(user: User):
+    try:
+        supabase.auth.sign_up({"email": user.email, "password": user.password})
+        return {"message": "User registered successfully"}
+    except Exception as e:
+        return {"error": f"Internal Server Error: {str(e)}"}
+
+# Sign in user
+@app.post("/sign-in/")
+async def sign_in(user: User):
+    try:
+        response = supabase.auth.sign_in_with_password({"email": user.email, "password": user.password})
+
+        # Ensure `session` exists in the response
+        if response.session is None:
+            raise HTTPException(status_code=401, detail="Invalid credentials or user does not exist.")
+
+        return {"message": "Login successful", "access_token": response.session.access_token}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
