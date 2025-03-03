@@ -78,7 +78,7 @@ def test_sign_in():
             # print("\n🟢 User successfully signed in.")
 
             # Now terminate the session
-            test_terminate_session(access_token)
+            #test_terminate_session(access_token)
 
     except requests.exceptions.JSONDecodeError as e:
         print("❌ Error parsing JSON:", e)
@@ -98,8 +98,5 @@ def test_terminate_session(access_token):
     except requests.exceptions.JSONDecodeError as e:
         print("❌ Error parsing JSON:", e)
 
-
-# Run the test
-test_sign_up()
-
-
+test_sign_in()
+test_add_clothing_item()
