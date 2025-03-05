@@ -1,25 +1,14 @@
 # 📌 Import necessary modules
-from fastapi import FastAPI, HTTPException, Depends, Security
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel
-from huggingface import generateOutfit
 from database import supabase
 
 # 📌 Initialize FastAPI app
 app = FastAPI()
 
-# 📌 Middleware (CORS)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# 📌 Security (Token Authentication)
-security = HTTPBearer()
+class User(BaseModel):
+    email: str
+    password: str
 
 # 📌 Active session storage
 active_sessions = {}
@@ -38,45 +27,6 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Security(securi
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to retrieve user: {str(e)}")
-
-# 📌 Health Check Endpoint
-@app.get("/")
-def healthcheck():
-    return {"message": "Health check check"}
-
-# 📌 Models
-class ChatRequest(BaseModel):
-    user_message: str
-    temp: str
-
-class ClothingItem(BaseModel):
-    user_id: str
-    item_type: str
-    material: str
-    color: str
-    formality: str
-    pattern: str
-    fit: str
-    suitable_for_weather: str
-    suitable_for_occasion: str
-
-class UserPreference(BaseModel):
-    user_id: str
-    preferred_fit: str
-    preferred_colors: list
-    preferred_formality: str
-    preferred_patterns: list
-    preferred_temperature: str
-
-class User(BaseModel):
-    email: str
-    password: str
-
-# 📌 AI Chatbot Endpoint
-@app.post("/chat/")
-def chat(request: ChatRequest):
-    response = generateOutfit(request.user_message, request.temp)
-    return {"response": response}
 
 # 📌 Authentication Endpoints
 @app.post("/sign-up/")
@@ -125,27 +75,3 @@ async def sign_out(user=Depends(get_current_user)):
         return {"message": "User successfully signed out"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to log out: {str(e)}")
-
-# 📌 Clothing Item Endpoints
-@app.post("/add_clothing_item/")
-async def add_clothing_item(item: ClothingItem, user=Depends(get_current_user)):
-    data, error = supabase.table("clothing_items").insert(item.dict()).execute()
-    if error:
-        return {"error": str(error)}
-    return {"message": "Clothing item added successfully", "data": data}
-
-@app.get("/clothing_items/")
-async def get_clothing_items(user=Depends(get_current_user)):
-    try:
-        response = supabase.table("clothing_items").select("*").eq("user_id", user.id).execute()
-        return {"data": response.data if response.data else []}
-    except Exception as e:
-        return {"error": f"Internal Server Error: {str(e)}"}
-
-# 📌 User Preferences Endpoints
-@app.post("/add_user_preference/")
-async def add_user_preference(pref: UserPreference):
-    data, error = supabase.table("user_preferences").insert(pref.dict()).execute()
-    if error:
-        return {"error": error}
-    return {"message": "User preference added", "data": data}
