@@ -9,7 +9,10 @@ from auth import (
     get_current_user
 )
 from huggingface import generateOutfit
-from database import supabase  # Only needed if used in clothing endpoints
+from wardrobe_db import (
+    add_clothing_item_db
+)
+from database import supabase
 from datetime import datetime, timedelta, timezone
 
 app = FastAPI()
@@ -47,7 +50,6 @@ class UserPreference(BaseModel):
     preferred_patterns: list
     preferred_temperature: str
 
-# New Models for authentication with additional fields:
 class SignupUser(BaseModel):
     first_name: str
     last_name: str
@@ -57,7 +59,9 @@ class SignupUser(BaseModel):
 
 class SigninUser(BaseModel):
     identifier: str  # Can be either email or username
-    password: str
+    password: str    
+
+
 
 # AI Chatbot Endpoint
 @app.post("/chat/")
@@ -65,30 +69,36 @@ def chat(request: ChatRequest):
     response = generateOutfit(request.user_message, request.temp)
     return {"response": response}
 
+
+
 # Authentication Endpoints
 @app.post("/sign-up/")
 async def sign_up(user: SignupUser):
     return sign_up_db(user)
 
+
 @app.post("/sign-in/")
 async def sign_in(user: SigninUser):
     return sign_in_db(user)
+
 
 @app.get("/session/")
 async def get_session(user=Depends(get_current_user)):
     return get_session_db(user)
 
+
 @app.post("/sign-out/")
 async def sign_out(user=Depends(get_current_user)):
     return sign_out_db(user)
 
+
+
 # Clothing Item Endpoints
 @app.post("/add_clothing_item/")
 async def add_clothing_item(item: ClothingItem, user=Depends(get_current_user)):
-    data, error = supabase.table("clothing_items").insert(item.dict()).execute()
-    if error:
-        return {"error": str(error)}
-    return {"message": "Clothing item added successfully", "data": data}
+    item.user_id = user.id
+    return add_clothing_item_db(item)
+
 
 @app.get("/clothing_items/")
 async def get_clothing_items(user=Depends(get_current_user)):
@@ -97,6 +107,7 @@ async def get_clothing_items(user=Depends(get_current_user)):
         return {"data": response.data if response.data else []}
     except Exception as e:
         return {"error": f"Internal Server Error: {str(e)}"}
+
 
 # User Preferences Endpoints
 @app.post("/add_user_preference/")

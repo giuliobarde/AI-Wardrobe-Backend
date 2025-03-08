@@ -13,12 +13,11 @@ SESSION_TIMEOUT = timedelta(minutes=20)
 security = HTTPBearer()
 
 
-# 📌 Get Current User (Moved from `main.py`)
+# 📌 Get Current User
 def get_current_user(credentials: HTTPAuthorizationCredentials = Security(security)):
     token = credentials.credentials
     try:
         user_response = supabase.auth.get_user(token)
-        print("🔍 Raw Supabase User Response:", user_response)
 
         if not hasattr(user_response, "user") or user_response.user is None:
             raise HTTPException(status_code=401, detail="Invalid or expired token")
@@ -46,7 +45,6 @@ def sign_up_db(user):
             "email": user.email,
             "password": user.password
         })
-        print("🔍 Auth Response:", auth_response)
 
         # Use getattr to safely check for an error attribute.
         auth_error = getattr(auth_response, "error", None)
@@ -65,11 +63,9 @@ def sign_up_db(user):
             "username": user.username,
             "email": user.email,
         }
-        print("📌 Profile Data Before Insert:", profile_data)
 
         # Insert additional profile data into the 'profiles' table.
         profile_response = supabase.table("profiles").insert(profile_data).execute()
-        print("✅ Profile Insert Response:", profile_response)
 
         # Check if the profile insertion returned an error.
         profile_error = getattr(profile_response, "error", None)
@@ -86,8 +82,6 @@ def sign_up_db(user):
 # 📌 Sign In Function
 def sign_in_db(user):
     try:
-        print("📌 Received Login Payload:", user.dict())
-
         # Determine if the identifier is an email or a username
         email_to_use = user.identifier
         if "@" not in user.identifier:
