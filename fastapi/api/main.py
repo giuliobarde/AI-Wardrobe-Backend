@@ -10,7 +10,8 @@ from auth import (
 )
 from huggingface import generateOutfit
 from wardrobe_db import (
-    add_clothing_item_db
+    add_clothing_item_db,
+    get_user_items_db
 )
 from database import supabase
 from datetime import datetime, timedelta, timezone
@@ -101,12 +102,8 @@ async def add_clothing_item(item: ClothingItem, user=Depends(get_current_user)):
 
 
 @app.get("/clothing_items/")
-async def get_clothing_items(user=Depends(get_current_user)):
-    try:
-        response = supabase.table("clothing_items").select("*").eq("user_id", user.id).execute()
-        return {"data": response.data if response.data else []}
-    except Exception as e:
-        return {"error": f"Internal Server Error: {str(e)}"}
+async def get_clothing_items(item_type: str, user=Depends(get_current_user)):
+    return get_user_items_db(item_type, user)
 
 
 # User Preferences Endpoints
