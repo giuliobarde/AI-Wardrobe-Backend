@@ -42,6 +42,7 @@ class ClothingItem(BaseModel):
     fit: str
     suitable_for_weather: str
     suitable_for_occasion: str
+    sub_type: str
 
 class UserPreference(BaseModel):
     user_id: str

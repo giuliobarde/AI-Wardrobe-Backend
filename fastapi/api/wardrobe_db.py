@@ -3,7 +3,6 @@ from database import supabase
 
 def add_clothing_item_db(item):
     try:
-        # Prepare the data for insertion
         item_data = {
             "user_id": item.user_id,
             "item_type": item.item_type,
@@ -14,11 +13,11 @@ def add_clothing_item_db(item):
             "fit": item.fit,
             "suitable_for_weather": item.suitable_for_weather,
             "suitable_for_occasion": item.suitable_for_occasion,
+            "sub_type": item.sub_type,
         }
 
         item_response = supabase.table("clothing_items").insert(item_data).execute()
 
-        # Check for errors in the response.
         item_error = getattr(item_response, "error", None)
         if item_error:
             raise HTTPException(status_code=400, detail=str(item_error))
