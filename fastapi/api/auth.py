@@ -102,15 +102,36 @@ def sign_in_db(user):
         if not getattr(response, "session", None):
             raise HTTPException(status_code=401, detail="Invalid credentials or user does not exist.")
 
+        # After successful authentication
         access_token = response.session.access_token
         user_id = response.user.id
+
+        # Query for additional profile details
+        profile_response = supabase.table("profiles") \
+            .select("first_name, last_name, username, member_since, gender") \
+            .eq("id", user_id) \
+            .execute()
+
+        if profile_response.data and len(profile_response.data) > 0:
+            profile_data = profile_response.data[0]
+        else:
+            profile_data = {}
 
         active_sessions[user_id] = {
             "access_token": access_token,
             "last_active": datetime.now(timezone.utc)
         }
 
-        return {"message": "Login successful", "user_id": user_id, "access_token": access_token}
+        return {
+            "message": "Login successful",
+            "user_id": user_id,
+            "access_token": access_token,
+            "first_name": profile_data.get("first_name"),
+            "last_name": profile_data.get("last_name"),
+            "username": profile_data.get("username"),
+            "member_since": profile_data.get("member_since"),
+            "gender": profile_data.get("gender"),
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
