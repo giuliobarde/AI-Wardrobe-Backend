@@ -67,9 +67,20 @@ class SigninUser(BaseModel):
 
 # AI Chatbot Endpoint
 @app.post("/chat/")
-def chat(request: ChatRequest):
-    response = generateOutfit(request.user_message, request.temp)
-    return {"response": response}
+def chat(request: ChatRequest, user=Depends(get_current_user)):
+    # Retrieve wardrobe items for the current user.
+    # Here we select the 'sub_type' field from each clothing item.
+    wardrobe_response = supabase.table("clothing_items").select("sub_type").eq("user_id", user.id).execute()
+
+    # Extract wardrobe items as a list of strings.
+    if wardrobe_response.data:
+        wardrobe_items = [item["sub_type"] for item in wardrobe_response.data]
+    else:
+        wardrobe_items = []
+
+    # Call generateOutfit with the occasion message, temperature, and wardrobe items.
+    outfit_response = generateOutfit(request.user_message, request.temp, wardrobe_items)
+    return {"response": outfit_response}
 
 
 
