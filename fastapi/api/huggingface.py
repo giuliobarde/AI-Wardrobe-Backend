@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 from huggingface_hub import InferenceClient
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
 # Load environment variables
 load_dotenv()
@@ -22,8 +22,9 @@ def generateOutfit(user_message: str, temp: str, wardrobe_items: list[dict]) -> 
                                      each containing all attributes.
 
     Returns:
-        str: The AI-generated outfit suggestion.
+        str: The AI-generated outfit suggestion following the strict format.
     """
+    # Format the wardrobe items.
     formatted_items = []
     for item in wardrobe_items:
         formatted_item = (
@@ -38,34 +39,72 @@ def generateOutfit(user_message: str, temp: str, wardrobe_items: list[dict]) -> 
             f"Sub Type: {item.get('sub_type', 'N/A')}"
         )
         formatted_items.append(formatted_item)
-
-    # Convert wardrobe items into a readable string.
+    
     wardrobe_text = "The user's wardrobe includes: " + " | ".join(formatted_items) + "."
-
-    # Create prompt messages that include wardrobe context.
+    
+    # Construct a strict few-shot prompt with two examples.
     messages = [
         SystemMessage(
-            content="You're a helpful style assistant that suggests outfits piece by piece based on the user's wardrobe and current temperature."
+            content="""
+You are a style assistant that suggests complete outfits based solely on the user's wardrobe and current temperature.
+Each outfit suggestion should consist of a cohesive set of garments suitable for the occasion. 
+You must only return the items needed for the outfit and a short sentence describing the outfit.
+You must not return other items of the user in the response unless they are used in the outfit. 
+You must not return the full description of the item at any point in the response.
+Your response must strictly adhere to the following format and include only the items for the outfit and one short description:
+For -user request- I suggest:
+- Item 1
+- Item 2
+- Item 3
+- Item 4
+Short description: <One short sentence describing the outfit>
+
+Do not include any additional text, extra items, or a full description of the wardrobe items.
+Below are two examples:
+            """
         ),
         HumanMessage(
-            content=f"Occasion: {user_message} {wardrobe_text} It is currently: {temp}."
+            content="Example 1 - Occasion: I need an outfit for a wedding. Temperature: 20C."
+        ),
+        AIMessage(
+            content="""For a wedding I suggest:
+- White dress shirt
+- Navy blue suit pants
+- Black dress shoes
+- Navy blue suit jacket
+Short description: This ensemble is classic, elegant, and perfect for a wedding."""
+        ),
+        HumanMessage(
+            content="Example 2 - Occasion: I need an outfit for a job interview. Temperature: 20C."
+        ),
+        AIMessage(
+            content="""For a job interview I suggest:
+- Light blue dress shirt
+- Grey slacks
+- Black leather dress shoes
+- Charcoal blazer
+Short description: This outfit is professional and modern, making a strong impression."""
+        ),
+        HumanMessage(
+            content=f"Now, Occasion: {user_message}. {wardrobe_text} Temperature: {temp}."
         ),
     ]
-    input_text = f"{messages[0].content}\n{messages[1].content}"
-
-    input_text = f"{messages[0].content}\n{messages[1].content}"
+    
+    # Join the messages to form the full prompt.
+    input_text = "\n".join(message.content.strip() for message in messages)
+    
     response = client.text_generation(
         input_text,
         max_new_tokens=512,
-        do_sample=True,  # enable sampling for more varied output
-        temperature=0.8,
+        do_sample=True,
+        temperature=0.3,  # Lowered temperature for more deterministic output
         repetition_penalty=1.03,
     )
-
-    # Extract the generated text if needed.
+    
+    # Extract generated text if needed.
     if isinstance(response, list) and response and "generated_text" in response[0]:
         generated = response[0]["generated_text"]
     else:
         generated = response  # fallback if response is already a string
-
+    
     return generated
