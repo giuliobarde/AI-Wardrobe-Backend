@@ -8,7 +8,7 @@ from auth import (
     sign_out_db, 
     get_current_user
 )
-from huggingface import generateOutfit
+from huggingface import generateOutfit, setOccasion
 from wardrobe_db import (
     add_clothing_item_db,
     get_user_items_db
@@ -106,6 +106,7 @@ async def sign_out(user=Depends(get_current_user)):
 # Clothing Item Endpoints
 @app.post("/add_clothing_item/")
 async def add_clothing_item(item: ClothingItem, user=Depends(get_current_user)):
+    setOccasion(item)
     item.user_id = user.id
     return add_clothing_item_db(item)
 
