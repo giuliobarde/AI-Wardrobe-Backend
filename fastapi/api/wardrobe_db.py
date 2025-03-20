@@ -27,6 +27,7 @@ def add_clothing_item_db(item):
         print("❌ Adding Item Error:", str(e))
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
+
 def get_user_items_db(item_type, user):
     try:
         response = supabase.table("clothing_items").select("*").eq("user_id", user.id).eq("item_type", item_type).execute()
@@ -39,4 +40,21 @@ def get_user_items_db(item_type, user):
         return {"data": response.data if response.data else []}
     except Exception as e:
         print("❌ Retriving Item Error:", str(e))
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+
+
+def delete_clothing_item_db(item_id: str):
+    try:
+        response = supabase.table("clothing_items").delete().eq("id", item_id).execute()
+        
+        try:
+            if response.error:
+                raise HTTPException(status_code=400, detail=str(response.error))
+        except AttributeError:
+            pass
+        
+        # Return the data if available.
+        return {"data": response.data if hasattr(response, "data") and response.data else []}
+    except Exception as e:
+        print("❌ Deleting Item Error:", str(e))
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")

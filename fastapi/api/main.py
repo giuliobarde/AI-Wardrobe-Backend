@@ -11,6 +11,7 @@ from auth import (
 from huggingface import generateOutfit, setOccasion
 from wardrobe_db import (
     add_clothing_item_db,
+    delete_clothing_item_db,
     get_user_items_db
 )
 from database import supabase
@@ -62,6 +63,9 @@ class SignupUser(BaseModel):
 class SigninUser(BaseModel):
     identifier: str  # Can be either email or username
     password: str    
+
+class DeleteItem(BaseModel):
+    item_id: str
 
 
 
@@ -115,6 +119,9 @@ async def add_clothing_item(item: ClothingItem, user=Depends(get_current_user)):
 async def get_clothing_items(item_type: str, user=Depends(get_current_user)):
     return get_user_items_db(item_type, user)
 
+@app.post("/delete_clothing_item")
+async def delete_clothing_item(data: DeleteItem):
+    return delete_clothing_item_db(data.item_id)
 
 # User Preferences Endpoints
 @app.post("/add_user_preference/")
