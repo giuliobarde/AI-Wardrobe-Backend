@@ -1,16 +1,19 @@
 import os
-import re
 from dotenv import load_dotenv
-from huggingface_hub import InferenceClient
+from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from pydantic import BaseModel
 
 # Load environment variables
 load_dotenv()
-huggingfacehub_api_token = os.getenv("HUGGINGFACEHUB_API_TOKEN")
+openai_api_key = os.getenv("OPENAI_API_KEY")
 
-# Initialize the Hugging Face Inference Client
-client = InferenceClient(model="HuggingFaceH4/zephyr-7b-beta", token=huggingfacehub_api_token)
+# Initialize the OpenAI Chat model via LangChain
+llm = ChatOpenAI(
+    openai_api_key=openai_api_key,
+    temperature=0.3,
+    model_name="gpt-3.5-turbo"
+)
 
 class ClothingItem(BaseModel):
     user_id: str
@@ -24,21 +27,10 @@ class ClothingItem(BaseModel):
     suitable_for_occasion: str
     sub_type: str
 
-
-
 def generateOutfit(user_message: str, temp: str, wardrobe_items: list[dict]) -> str:
     """
     Generates an outfit suggestion based on the user's message, current temperature,
     and the items in the user's wardrobe.
-
-    Args:
-        user_message (str): The occasion or query from the user.
-        temp (str): The current temperature (e.g., "20C").
-        wardrobe_items (list[dict]): A list of clothing items in the user's wardrobe,
-                                     each containing all attributes.
-
-    Returns:
-        str: The AI-generated outfit suggestion following the strict format.
     """
     # Format the wardrobe items.
     formatted_items = []
@@ -55,10 +47,9 @@ def generateOutfit(user_message: str, temp: str, wardrobe_items: list[dict]) -> 
             f"Sub Type: {item.get('sub_type', 'N/A')}"
         )
         formatted_items.append(formatted_item)
-    
     wardrobe_text = "The user's wardrobe includes: " + " | ".join(formatted_items) + "."
-    
-    # Construct a strict few-shot prompt with two examples and a clear output delimiter.
+
+    # Construct a strict few-shot prompt with two examples and an output delimiter.
     messages = [
         SystemMessage(
             content="""
@@ -84,7 +75,6 @@ Below are two examples:
         ),
         AIMessage(
             content="""For a wedding I suggest:
-
 - White dress shirt
 - Navy blue suit pants
 - Black dress shoes
@@ -97,7 +87,6 @@ Short description: This ensemble is classic, elegant, and perfect for a wedding.
         ),
         AIMessage(
             content="""For a job interview I suggest:
-
 - Light blue dress shirt
 - Grey slacks
 - Black leather dress shoes
@@ -110,89 +99,59 @@ Short description: This outfit is professional and modern, making a strong impre
         ),
     ]
     
-    # Join the messages to form the full prompt.
-    input_text = "\n".join(message.content.strip() for message in messages)
-    
-    response = client.text_generation(
-        input_text,
-        max_new_tokens=512,
-        do_sample=True,
-        temperature=0.3,
-        repetition_penalty=1.03,
-    )
-    
-    # Extract generated text if needed.
-    if isinstance(response, list) and response and "generated_text" in response[0]:
-        generated = response[0]["generated_text"]
-    else:
-        generated = response  # fallback if response is already a string
-    
-    # Optionally, remove any text preceding the delimiter if it still appears.
+    # Call the OpenAI model with the list of messages using the invoke method.
+    response = llm.invoke(messages)
+    generated = response.content
+    # Remove any text preceding the output delimiter.
     if "### Output:" in generated:
         generated = generated.split("### Output:")[-1].strip()
-    
     return generated
 
-
-
 def setOccasion(item: ClothingItem) -> ClothingItem:
+    """
+    Analyzes an item and sets the suitable_for_occasion field based on the item's details.
+    """
     messages = [
         SystemMessage(
             content=(
-        f"Given a clothing item with the following details:\n"
-        f"Item type: {item.item_type}\n"
-        f"Material: {item.material}\n"
-        f"Color: {item.color}\n"
-        f"Formality: {item.formality}\n"
-        f"Pattern: {item.pattern}\n"
-        f"Fit: {item.fit}\n"
-        f"Suitable for weather: {item.suitable_for_weather}\n"
-        f"Sub-type: {item.sub_type}\n"
-        "Which occasion is it most suitable for? "
-        "Please choose from one of the following options:\n"
-        "white tie eevent, black tie event, job interview, wedding, dinner party, work, gym, "
-        "all occasions, casual outing, date night, party, general formal occasion, general informal occasion. "
-        "Note: 'black tie event' is reserved exclusively for items that belong to very formal attire categories. " 
-        "If the clothing item does not represent that level of formality, do not select this option. Items in this category "
-        "include tuxedos and patent leather dress shoes"
-
-        "Below are two output examples:"
-    )
+                f"Given a clothing item with the following details:\n"
+                f"Item type: {item.item_type}\n"
+                f"Material: {item.material}\n"
+                f"Color: {item.color}\n"
+                f"Formality: {item.formality}\n"
+                f"Pattern: {item.pattern}\n"
+                f"Fit: {item.fit}\n"
+                f"Suitable for weather: {item.suitable_for_weather}\n"
+                f"Sub-type: {item.sub_type}\n"
+                "Which occasion is it most suitable for? "
+                "Please choose from one of the following options:\n"
+                "white tie event, black tie event, job interview, wedding, dinner party, work, gym, "
+                "all occasions, casual outing, date night, party, general formal occasion, general informal occasion.\n"
+                "Note: 'black tie event' is reserved exclusively for items that belong to very formal attire categories. "
+                "If the clothing item does not represent that level of formality, do not select this option. Items in this category "
+                "include tuxedos and patent leather dress shoes.\n"
+                "Below are two output examples:"
+            )
         ),
         HumanMessage(
-            content="Example 1 - user_id='' item_type='tops' material='cashmere' color='navy' formality='somewhat formal' pattern='solid' fit='regular' suitable_for_weather='cold' suitable_for_occasion='' sub_type='crewneck sweater'"
+            content="Example 1 - Item: tuxedo, a formal black tuxedo with a bow tie and cummerbund."
         ),
         AIMessage(
-            content="general formal occasion"
+            content="black tie event"
         ),
         HumanMessage(
-            content="Example 2 - user_id='' item_type='bottoms' material='synthetic' color='grey' formality='not formal' pattern='solid' fit='baggy' suitable_for_weather='all' suitable_for_occasion='' sub_type='sweatpants'"
+            content="Example 2 - Item: business suit, a tailored navy business suit with a white shirt and conservative tie."
         ),
         AIMessage(
-            content="gym"
+            content="job interview"
         ),
         HumanMessage(
             content=f"Now, analyze the following item and choose the appropriate occasion from the list: {item.model_dump()}"
         ),
     ]
     
-    # Join the messages into one prompt.
-    input_text = "\n".join(message.content.strip() for message in messages)
-    
-    response = client.text_generation(
-        input_text,
-        max_new_tokens=128,
-        do_sample=True,
-        temperature=1,
-        repetition_penalty=1.03,
-    )
-    
-    # Extract the generated text.
-    if isinstance(response, list) and response and "generated_text" in response[0]:
-        generated = response[0]["generated_text"].strip()
-    else:
-        generated = response.strip()
-
+    response = llm.invoke(messages)
+    generated = response.content.strip()
     print(generated)
 
     allowed_occasions = [
@@ -209,16 +168,13 @@ def setOccasion(item: ClothingItem) -> ClothingItem:
         "general formal occasion",
         "general informal occasion",
     ]
-
-    response_lower = response.lower()
     
-    # Find the first allowed occasion that appears in the response
+    response_lower = generated.lower()
     chosen = "all occasions"  # default value
-    for occasion in allowed_occasions:
-        if occasion in response_lower:
-            chosen = occasion
+    for option in allowed_occasions:
+        if option in response_lower:
+            chosen = option
             break
     
-    # Update the item's suitable_for_occasion field
     item.suitable_for_occasion = chosen
     return item

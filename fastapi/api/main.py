@@ -8,7 +8,7 @@ from auth import (
     sign_out_db, 
     get_current_user
 )
-from huggingface import generateOutfit, setOccasion
+from openai_client import generateOutfit, setOccasion
 from wardrobe_db import (
     add_clothing_item_db,
     delete_clothing_item_db,
