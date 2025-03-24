@@ -1,4 +1,5 @@
 import os
+import json
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
@@ -27,15 +28,26 @@ class ClothingItem(BaseModel):
     suitable_for_occasion: str
     sub_type: str
 
-def generateOutfit(user_message: str, temp: str, wardrobe_items: list[dict]) -> str:
+def generateOutfit(user_message: str, temp: str, wardrobe_items: list[dict]) -> dict:
     """
     Generates an outfit suggestion based on the user's message, current temperature,
     and the items in the user's wardrobe.
+    
+    Returns a dictionary in the following JSON format:
+    {
+      "occasion": "<occasion string>",
+      "outfit_items": [
+         {"id": "<item id>", "sub_type": "<item sub type>", "color": "<item color>"},
+         ...
+      ],
+      "description": "<One short sentence describing the outfit>"
+    }
     """
     # Format the wardrobe items.
     formatted_items = []
     for item in wardrobe_items:
         formatted_item = (
+            f"Item ID: {item.get('id', 'N/A')}, "
             f"Type: {item.get('item_type', 'N/A')}, "
             f"Material: {item.get('material', 'unknown')}, "
             f"Color: {item.get('color', 'unknown')}, "
@@ -49,68 +61,59 @@ def generateOutfit(user_message: str, temp: str, wardrobe_items: list[dict]) -> 
         formatted_items.append(formatted_item)
     wardrobe_text = "The user's wardrobe includes: " + " | ".join(formatted_items) + "."
 
-    # Construct a strict few-shot prompt with two examples and an output delimiter.
+    # Construct a strict few-shot prompt with examples and an output delimiter.
     messages = [
         SystemMessage(
             content="""
 You are a style assistant that suggests complete outfits based solely on the user's wardrobe and current temperature.
-Each outfit suggestion must consist of a cohesive set of garments suitable for the occasion, keeping in mind the formality described by the user for each item.
-Your response must strictly adhere to the following format and include only the outfit items and one short description:
-
-For -user request- I suggest:
-- Item 1
-- Item 2
-- Item 3
-- Item 4
-
-Short description: <One short sentence describing the outfit>
-
-Do not include any extra text or repeat any of the instructions. Output only your answer exactly in the above format.
-
+Each outfit suggestion must consist of a cohesive set of garments suitable for the occasion, taking into account the formality of each item.
+Your response must be a valid JSON object in the following format:
+{
+  "occasion": "<occasion string>",
+  "outfit_items": [
+    {"id": "<item id>", "sub_type": "<item sub type>", "color": "<item color>"},
+    ... (up to 4 items)
+  ],
+  "description": "<One short sentence describing the outfit>"
+}
+Do not include any extra text.
 Below are two examples:
             """
         ),
         HumanMessage(
-            content="Example 1 - Occasion: I need an outfit for a wedding. Temperature: 20C."
+            content="Example 1 - Occasion: I need an outfit for a wedding. Temperature: 20C. Wardrobe: [Example wardrobe items]."
         ),
         AIMessage(
-            content="""For a wedding I suggest:
-- White dress shirt
-- Navy blue suit pants
-- Black dress shoes
-- Navy blue suit jacket
-
-Short description: This ensemble is classic, elegant, and perfect for a wedding."""
+            content='{"occasion": "wedding", "outfit_items": [{"id": "sbo1823y4ic73es", "sub_type": "White dress shirt", "color": "white"}, {"id": "ae8wciq3byebh2398y", "sub_type": "Navy blue suit pants", "color": "navy"}, {"id": "ab38592018cnwinxuyd", "sub_type": "Black dress shoes", "color": "black"}, {"id": "c1bq82wneyq82wyebq8wi", "sub_type": "Navy blue suit jacket", "color": "navy"}], "description": "This ensemble is classic, elegant, and perfect for a wedding."}'
         ),
         HumanMessage(
-            content="Example 2 - Occasion: I need an outfit for a job interview. Temperature: 20C."
+            content="Example 2 - Occasion: I need an outfit for a job interview. Temperature: 20C. Wardrobe: [Example wardrobe items]."
         ),
         AIMessage(
-            content="""For a job interview I suggest:
-- Light blue dress shirt
-- Grey slacks
-- Black leather dress shoes
-- Charcoal blazer
-
-Short description: This outfit is professional and modern, making a strong impression."""
+            content='{"occasion": "job interview", "outfit_items": [{"id": "w1209e7uqd8ahsjmzx", "sub_type": "Light blue dress shirt", "color": "light blue"}, {"id": "eq0ad8yzhiuhbxq28eu", "sub_type": "Grey slacks", "color": "grey"}, {"id": "12846nqiwuaahjshdaj", "sub_type": "Black leather dress shoes", "color": "black"}, {"id": "2817c2basduhwneiuwq", "sub_type": "Charcoal blazer", "color": "charcoal"}], "description": "This outfit is professional and modern, making a strong impression."}'
         ),
         HumanMessage(
             content=f"Now, Occasion: {user_message}. {wardrobe_text} Temperature: {temp}.\n### Output:"
         ),
     ]
     
-    # Call the OpenAI model with the list of messages using the invoke method.
     response = llm.invoke(messages)
     generated = response.content
-    # Remove any text preceding the output delimiter.
     if "### Output:" in generated:
         generated = generated.split("### Output:")[-1].strip()
-    return generated
+    
+    try:
+        outfit_json = json.loads(generated)
+    except Exception as e:
+        # Fallback in case parsing fails.
+        outfit_json = {
+            "occasion": "",
+            "outfit_items": [],
+            "description": generated
+        }
+    return outfit_json
 
 def setOccasion(item: ClothingItem) -> ClothingItem:
-    """
-    Analyzes an item and sets the suitable_for_occasion field based on the item's details.
-    """
     messages = [
         SystemMessage(
             content=(

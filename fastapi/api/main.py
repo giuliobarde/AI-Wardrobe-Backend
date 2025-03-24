@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from auth import (
@@ -12,7 +12,8 @@ from openai_client import generateOutfit, setOccasion
 from wardrobe_db import (
     add_clothing_item_db,
     delete_clothing_item_db,
-    get_user_items_db
+    get_user_items_db,
+    get_item_by_id_db  # Newly added helper
 )
 from database import supabase
 from datetime import datetime, timedelta, timezone
@@ -67,45 +68,30 @@ class SigninUser(BaseModel):
 class DeleteItem(BaseModel):
     item_id: str
 
-
-
 # AI Chatbot Endpoint
 @app.post("/chat/")
 def chat(request: ChatRequest, user=Depends(get_current_user)):
-    # Retrieve wardrobe items for the current user.
-    # Here we select the 'sub_type' field from each clothing item.
     wardrobe_response = supabase.table("clothing_items").select("*").eq("user_id", user.id).execute()
-
-    # Extract wardrobe items as a list of strings.
     wardrobe_items = wardrobe_response.data if wardrobe_response.data else []
-
-    # Call generateOutfit with the occasion message, temperature, and wardrobe items.
     outfit_response = generateOutfit(request.user_message, request.temp, wardrobe_items)
     return {"response": outfit_response}
-
-
 
 # Authentication Endpoints
 @app.post("/sign-up/")
 async def sign_up(user: SignupUser):
     return sign_up_db(user)
 
-
 @app.post("/sign-in/")
 async def sign_in(user: SigninUser):
     return sign_in_db(user)
-
 
 @app.get("/session/")
 async def get_session(user=Depends(get_current_user)):
     return get_session_db(user)
 
-
 @app.post("/sign-out/")
 async def sign_out(user=Depends(get_current_user)):
     return sign_out_db(user)
-
-
 
 # Clothing Item Endpoints
 @app.post("/add_clothing_item/")
@@ -114,12 +100,20 @@ async def add_clothing_item(item: ClothingItem, user=Depends(get_current_user)):
     item.user_id = user.id
     return add_clothing_item_db(item)
 
-
 @app.get("/clothing_items/")
-async def get_clothing_items(item_type: str, user=Depends(get_current_user)):
-    return get_user_items_db(item_type, user)
+async def get_clothing_items(
+    item_type: str = None, 
+    item_id: str = Query(None, alias="id"), 
+    user=Depends(get_current_user)
+):
+    if item_id:
+        return get_item_by_id_db(item_id, user)
+    elif item_type:
+        return get_user_items_db(item_type, user)
+    else:
+        raise HTTPException(status_code=400, detail="Either item_type or item_id must be provided.")
 
-@app.post("/delete_clothing_item")
+@app.post("/delete_clothing_item/")
 async def delete_clothing_item(data: DeleteItem):
     return delete_clothing_item_db(data.item_id)
 
