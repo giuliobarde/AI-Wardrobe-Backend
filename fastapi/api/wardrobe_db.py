@@ -46,6 +46,21 @@ def get_item_by_id_db(item_id: str, user):
         print("❌ Retrieving Item by ID Error:", str(e))
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
+def get_all_user_items_db(user):
+    try:
+        response = supabase.table("clothing_items")\
+            .select("*")\
+            .eq("user_id", user.id)\
+            .order("added_date", desc=True)\
+            .execute()
+        item_error = getattr(response, "error", None)
+        if item_error:
+            raise HTTPException(status_code=400, detail=str(item_error))
+        return {"data": response.data if response.data else []}
+    except Exception as e:
+        print("❌ Retrieving All Items Error:", str(e))
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+
 def delete_clothing_item_db(item_id: str):
     try:
         response = supabase.table("clothing_items").delete().eq("id", item_id).execute()

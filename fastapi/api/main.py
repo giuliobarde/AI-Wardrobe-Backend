@@ -13,7 +13,8 @@ from wardrobe_db import (
     add_clothing_item_db,
     delete_clothing_item_db,
     get_user_items_db,
-    get_item_by_id_db  # Newly added helper
+    get_item_by_id_db,
+    get_all_user_items_db  # New helper for all items
 )
 from database import supabase
 from datetime import datetime, timedelta, timezone
@@ -112,6 +113,11 @@ async def get_clothing_items(
         return get_user_items_db(item_type, user)
     else:
         raise HTTPException(status_code=400, detail="Either item_type or item_id must be provided.")
+
+# New endpoint: Get all clothing items for the user, sorted by added_date (desc)
+@app.get("/clothing_items/all/")
+async def get_all_clothing_items(user=Depends(get_current_user)):
+    return get_all_user_items_db(user)
 
 @app.post("/delete_clothing_item/")
 async def delete_clothing_item(data: DeleteItem):
