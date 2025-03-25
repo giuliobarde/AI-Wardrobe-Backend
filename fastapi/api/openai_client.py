@@ -28,6 +28,182 @@ class ClothingItem(BaseModel):
     suitable_for_occasion: str
     sub_type: str
 
+# Dictionary mapping allowed occasions to configuration details.
+occasion_config = {
+    "black tie event": {
+        "items": [
+            "Tuxedo Jacket",
+            "Tuxedo Vest",
+            "Tuxedo Pants",
+            "Tuxedo Shirt",
+            "Dress Shirt",
+            "Patent Leather Oxfords",
+            "Leather Oxfords",
+            "Patent Leather Derbies",
+            "Opera Pumps",
+            "Ribbon Pumps"
+        ],
+        "rules": "Only if strictly required; must not use any lower-formality items.",
+        "strictness": "Extremely strict",
+        "description": "Black tie is an extremely high level of formality, and it should only be worn on special occasions, typically after 6pm."
+    },
+    "job interview": {
+        "items": [
+            "Dress Shirt",
+            "Slacks",
+            "Suit Pants",
+            "Oxfords",
+            "Derbies",
+            "Blazer",
+            "Suit Jacket",
+            "Dress Shoes",
+            "Tie",
+            "Belt"
+        ],
+        "rules": "Maintain professionalism; ideally suggest a full suit.",
+        "strictness": "Strict",
+        "description": "This outfit should be professional, clean, and conservative."
+    },
+    "dinner party": {
+        "items": [
+            "Blazer",
+            "Dress Shirt",
+            "Chinos",
+            "Dress Pants",
+            "Loafers",
+            "Derbies",
+            "Oxfords",
+            "Dress Boots",
+            "Sweater",
+            "Polo Shirt"
+        ],
+        "rules": "Should be sophisticated but not overly formal; avoid overly casual items.",
+        "strictness": "Moderate",
+        "description": "An outfit for a dinner party should be stylish and sophisticated without being overly formal."
+    },
+    "work": {
+        "items": [
+            "Dress Shirt",
+            "Suit Pants",
+            "Chinos",
+            "Dress Shoes",
+            "Blazer",
+            "Sweater",
+            "Loafers",
+            "Derbies",
+            "Oxfords",
+            "Tie"
+        ],
+        "rules": "Professional business casual or formal, depending on the work environment; avoid overly casual items.",
+        "strictness": "Moderate",
+        "description": "Work attire should be business casual or formal, appropriate for a professional environment."
+    },
+    "gym": {
+        "items": [
+            "T-Shirt",
+            "Athletic Shorts",
+            "Joggers",
+            "Sweatpants",
+            "Tank Top",
+            "Sneakers",
+            "Running Shoes",
+            "Sports Socks",
+            "Athletic Jacket",
+            "Sweatshirt"
+        ],
+        "rules": "Must prioritize comfort, breathability, and mobility; avoid restrictive or formal items.",
+        "strictness": "Low",
+        "description": "Gym attire should be comfortable, breathable, and suitable for physical exercise."
+    },
+    "all occasions": {
+        "items": [
+            "T-Shirt",
+            "Jeans",
+            "Chinos",
+            "Sneakers",
+            "Casual Shoes",
+            "Sweater",
+            "Jacket",
+            "Polo Shirt"
+        ],
+        "rules": "Items should be versatile, comfortable, and acceptable in most casual to semi-formal settings.",
+        "strictness": "Moderate",
+        "description": "A versatile outfit that works in many settings."
+    },
+    "casual outing": {
+        "items": [
+            "T-Shirt",
+            "Jeans",
+            "Shorts",
+            "Sneakers",
+            "Casual Shoes",
+            "Sweatshirt",
+            "Hoodie",
+            "Casual Jacket"
+        ],
+        "rules": "Focus on comfort and relaxed style; no formal clothing required.",
+        "strictness": "Low",
+        "description": "For casual outings, choose relaxed and comfortable clothing."
+    },
+    "party": {
+        "items": [
+            "Casual Shirt",
+            "Jeans",
+            "Chinos",
+            "Sneakers",
+            "Loafers",
+            "Casual Boots",
+            "Blazer",
+            "Bomber Jacket"
+        ],
+        "rules": "Fashionable and fun without being overly casual or inappropriate.",
+        "strictness": "Moderate",
+        "description": "Party outfits should be trendy and fun while still being appropriate."
+    },
+    "general formal occasion": {
+        "items": [
+            "Suit Jacket",
+            "Blazer",
+            "Dress Shirt",
+            "Dress Pants",
+            "Tie",
+            "Leather Dress Shoes",
+            "Oxfords",
+            "Derbies"
+        ],
+        "rules": "Must be neat, formal, and appropriate for high-level events; avoid casual wear.",
+        "strictness": "Strict",
+        "description": "A formal outfit suitable for most formal events."
+    },
+    "general informal occasion": {
+        "items": [
+            "T-Shirt",
+            "Casual Shirt",
+            "Jeans",
+            "Chinos",
+            "Shorts",
+            "Sneakers",
+            "Casual Shoes",
+            "Sweatshirt",
+            "Hoodie"
+        ],
+        "rules": "Comfortable and casual; suitable for relaxed environments.",
+        "strictness": "Low",
+        "description": "An informal outfit that is comfortable and casual."
+    }
+}
+
+def determine_occasions(user_message: str) -> str:
+    """
+    Determines the target occasion from the user's message using simple keyword matching.
+    Returns one of the keys in occasion_config or defaults to "all occasions".
+    """
+    lower_msg = user_message.lower()
+    for occ in occasion_config.keys():
+        if occ in lower_msg:
+            return occ
+    return "all occasions"
+
 def generateOutfit(user_message: str, temp: str, wardrobe_items: list[dict]) -> dict:
     """
     Generates an outfit suggestion based on the user's message, current temperature,
@@ -38,11 +214,23 @@ def generateOutfit(user_message: str, temp: str, wardrobe_items: list[dict]) -> 
       "occasion": "<occasion string>",
       "outfit_items": [
          {"id": "<item id>", "sub_type": "<item sub type>", "color": "<item color>"},
-         ...
+         ... (between 3 and 6 items, following guardrails)
       ],
       "description": "<One short sentence describing the outfit>"
     }
     """
+    # Determine target occasion from the user message.
+    target_occ = determine_occasions(user_message)
+    config = occasion_config.get(target_occ, occasion_config["all occasions"])
+    
+    # Build the rules text from the configuration.
+    rules_text = (
+        f"Allowed items: {', '.join(config['items']) if config['items'] else 'Any'}, "
+        f"Rules: {config['rules']}, "
+        f"Strictness: {config['strictness']}. "
+        f"Description: {config['description']}"
+    )
+
     # Format the wardrobe items.
     formatted_items = []
     for item in wardrobe_items:
@@ -61,21 +249,31 @@ def generateOutfit(user_message: str, temp: str, wardrobe_items: list[dict]) -> 
         formatted_items.append(formatted_item)
     wardrobe_text = "The user's wardrobe includes: " + " | ".join(formatted_items) + "."
 
-    # Construct a strict few-shot prompt with examples and an output delimiter.
+    # Construct a strict few-shot prompt including the occasion configuration and guardrails.
     messages = [
         SystemMessage(
-            content="""
-You are a style assistant that suggests complete outfits based solely on the user's wardrobe and current temperature.
-Each outfit suggestion must consist of a cohesive set of garments suitable for the occasion, taking into account the formality of each item.
+            content=f"""
+You are a style assistant that suggests complete outfits based solely on the user's wardrobe, current temperature, and a given occasion configuration.
+Rules for target occasion ({target_occ}):
+{rules_text}
+
+Additional guardrails:
+- The outfit may contain between 3 and 6 items.
+- It must include exactly one pair of shoes.
+- It must include exactly one pair of pants.
+- It must include between one and two tops.
+- It must include between one and two outerwear pieces (if applicable).
+
+For each outfit item, include only the item id, sub type, and color.
 Your response must be a valid JSON object in the following format:
-{
+{{
   "occasion": "<occasion string>",
   "outfit_items": [
-    {"id": "<item id>", "sub_type": "<item sub type>", "color": "<item color>"},
-    ... (up to 4 items)
+    {{"id": "<item id>", "sub_type": "<item sub type>", "color": "<item color>"}},
+    ... (between 3 and 6 items following the guardrails)
   ],
   "description": "<One short sentence describing the outfit>"
-}
+}}
 Do not include any extra text.
 Below are two examples:
             """
@@ -128,7 +326,7 @@ def setOccasion(item: ClothingItem) -> ClothingItem:
                 f"Sub-type: {item.sub_type}\n"
                 "Which occasion is it most suitable for? "
                 "Please choose from one of the following options:\n"
-                "white tie event, black tie event, job interview, wedding, dinner party, work, gym, "
+                "white tie event, black tie event, job interview, dinner party, work, gym, "
                 "all occasions, casual outing, date night, party, general formal occasion, general informal occasion.\n"
                 "Note: 'black tie event' is reserved exclusively for items that belong to very formal attire categories. "
                 "If the clothing item does not represent that level of formality, do not select this option. Items in this category "
@@ -160,13 +358,11 @@ def setOccasion(item: ClothingItem) -> ClothingItem:
     allowed_occasions = [
         "black tie event",
         "job interview",
-        "wedding",
         "dinner party",
         "work",
         "gym",
         "all occasions",
         "casual outing",
-        "date night",
         "party",
         "general formal occasion",
         "general informal occasion",
