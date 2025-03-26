@@ -16,6 +16,9 @@ from wardrobe_db import (
     get_item_by_id_db,
     get_all_user_items_db  # New helper for all items
 )
+from user_details import (
+    update_user_profile_db
+)
 from database import supabase
 from datetime import datetime, timedelta, timezone
 
@@ -68,6 +71,11 @@ class SigninUser(BaseModel):
 
 class DeleteItem(BaseModel):
     item_id: str
+
+class UpdateProfile(BaseModel):
+    first_name: str
+    last_name: str
+    username: str
 
 # AI Chatbot Endpoint
 @app.post("/chat/")
@@ -123,10 +131,15 @@ async def get_all_clothing_items(user=Depends(get_current_user)):
 async def delete_clothing_item(data: DeleteItem):
     return delete_clothing_item_db(data.item_id)
 
-# User Preferences Endpoints
+# User Endpoints
+@app.post("/update_profile/")
+async def update_user_profile(data: UpdateProfile, user=Depends(get_current_user)):
+    updated_user = update_user_profile_db(data, user)
+    return {"data": updated_user}
+
 @app.post("/add_user_preference/")
 async def add_user_preference(pref: UserPreference):
-    data, error = supabase.table("user_preferences").insert(pref.dict()).execute()
+    data, error = supabase.table("user_preferences").insert(pref.model_dump()).execute()
     if error:
         return {"error": error}
     return {"message": "User preference added", "data": data}
