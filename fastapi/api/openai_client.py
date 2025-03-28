@@ -1,5 +1,7 @@
 import os
 import json
+import logging
+from typing import Set
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
@@ -9,10 +11,11 @@ from pydantic import BaseModel
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 
-# Initialize the OpenAI Chat model via LangChain
+# Initialize the OpenAI Chat model via LangChain with adjusted sampling parameters.
 llm = ChatOpenAI(
     openai_api_key=openai_api_key,
-    temperature=0.3,
+    temperature=0.5,  # Adjusted temperature for some diversity.
+    top_p=1,
     model_name="gpt-3.5-turbo"
 )
 
@@ -27,6 +30,21 @@ class ClothingItem(BaseModel):
     suitable_for_weather: str
     suitable_for_occasion: str
     sub_type: str
+
+ALLOWED_OCCASIONS = [
+    "white tie event",
+    "black tie event",
+    "job interview",
+    "dinner party",
+    "work",
+    "gym",
+    "all occasions",
+    "casual outing",
+    "date night",
+    "party",
+    "general formal occasion",
+    "general informal occasion",
+]
 
 # Dictionary mapping allowed occasions to configuration details.
 occasion_config = {
@@ -209,33 +227,41 @@ def generateOutfit(user_message: str, temp: str, wardrobe_items: list[dict]) -> 
     Generates an outfit suggestion based on the user's message, current temperature,
     and the items in the user's wardrobe.
     
+    This function uses a two-step chain-of-thought process with few-shot prompting.
+    Additionally, for black tie events, it verifies that the generated outfit includes
+    a tuxedo or an acceptable black suit and a pair of dress shoes.
+    If the candidate does not meet these criteria, a suggestion to rent a tuxedo is appended.
+    
     Returns a dictionary in the following JSON format:
     {
       "occasion": "<occasion string>",
       "outfit_items": [
          {"id": "<item id>", "sub_type": "<item sub type>", "color": "<item color>"},
-         ... (between 3 and 6 items, following guardrails)
+         ... (between 3 and 6 items following the guardrails)
       ],
       "description": "<One short sentence describing the outfit>"
     }
     """
-    # Determine target occasion from the user message.
+    # Determine target occasion.
     target_occ = determine_occasions(user_message)
     config = occasion_config.get(target_occ, occasion_config["all occasions"])
     
-    # Build the rules text from the configuration.
+    # Build the rules text.
     rules_text = (
         f"Allowed items: {', '.join(config['items']) if config['items'] else 'Any'}, "
         f"Rules: {config['rules']}, "
         f"Strictness: {config['strictness']}. "
         f"Description: {config['description']}"
     )
-
+    
     # Format the wardrobe items.
     formatted_items = []
+    wardrobe_ids: Set[str] = set()
     for item in wardrobe_items:
+        item_id = item.get('id', 'N/A')
+        wardrobe_ids.add(item_id)
         formatted_item = (
-            f"Item ID: {item.get('id', 'N/A')}, "
+            f"Item ID: {item_id}, "
             f"Type: {item.get('item_type', 'N/A')}, "
             f"Material: {item.get('material', 'unknown')}, "
             f"Color: {item.get('color', 'unknown')}, "
@@ -248,132 +274,213 @@ def generateOutfit(user_message: str, temp: str, wardrobe_items: list[dict]) -> 
         )
         formatted_items.append(formatted_item)
     wardrobe_text = "The user's wardrobe includes: " + " | ".join(formatted_items) + "."
-
-    # Construct a strict few-shot prompt including the occasion configuration and guardrails.
-    messages = [
+    
+    # -----------------------
+    # Step 1: Candidate Generation with Few-Shot Prompting
+    # -----------------------
+    candidate_messages = [
         SystemMessage(
             content=f"""
-You are a style assistant that suggests complete outfits based solely on the user's wardrobe, current temperature, and a given occasion configuration.
-Rules for target occasion ({target_occ}):
+Step 1: Candidate Generation.
+You are a style assistant that generates outfit suggestions.
+Below are four demonstration examples with chain-of-thought reasoning.
+IMPORTANT: Only select items that exist in the provided wardrobe (i.e. with matching Item IDs).
+
+Example 1:
+User: "I need an outfit for a wedding. Temperature: 20C. Wardrobe: [Example wardrobe items]."
+Assistant Reasoning: For a wedding, a formal and elegant outfit is needed. Considering a white dress shirt, navy suit pants, black dress shoes, and a navy suit jacket, this combination creates an elegant, classic look.
+Candidate Outfit: 
+- Item ID: ex1_1, Sub Type: White Dress Shirt, Color: White
+- Item ID: ex1_2, Sub Type: Navy Suit Pants, Color: Navy
+- Item ID: ex1_3, Sub Type: Black Dress Shoes, Color: Black
+- Item ID: ex1_4, Sub Type: Navy Suit Jacket, Color: Navy
+
+Example 2:
+User: "I need an outfit for a dinner party. Temperature: 18C. Wardrobe: [Example wardrobe items]."
+Assistant Reasoning: For a dinner party, the outfit should be stylish yet not overly formal. A black dress shirt, dark jeans, brown loafers, and a grey blazer create a modern and sophisticated look.
+Candidate Outfit:
+- Item ID: ex3_1, Sub Type: Black Dress Shirt, Color: Black
+- Item ID: ex3_2, Sub Type: Dark Jeans, Color: Dark Blue
+- Item ID: ex3_3, Sub Type: Brown Loafers, Color: Brown
+- Item ID: ex3_4, Sub Type: Grey Blazer, Color: Grey
+
+Example 3:
+User: "I need an outfit for the gym. Temperature: 22C. Wardrobe: [Example wardrobe items]."
+Assistant Reasoning: For the gym, comfort and mobility are most important. An athletic t-shirt, athletic shorts, and running shoes ensure freedom of movement and comfort.
+Candidate Outfit:
+- Item ID: ex4_1, Sub Type: Athletic T-Shirt, Color: White
+- Item ID: ex4_2, Sub Type: Athletic Shorts, Color: Black
+- Item ID: ex4_3, Sub Type: Running Shoes, Color: Red
+
+Example 4:
+User: "I need an outfit for a job interview. Temperature: 20C. Wardrobe: [Example wardrobe items]."
+Assistant Reasoning: For a job interview, professionalism is key. A light blue dress shirt, grey slacks, black leather dress shoes, and a charcoal blazer form a refined and professional ensemble.
+Candidate Outfit:
+- Item ID: ex2_1, Sub Type: Light Blue Dress Shirt, Color: Light Blue
+- Item ID: ex2_2, Sub Type: Grey Slacks, Color: Grey
+- Item ID: ex2_3, Sub Type: Black Leather Dress Shoes, Color: Black
+- Item ID: ex2_4, Sub Type: Charcoal Blazer, Color: Charcoal
+
+Now, using the following rules:
 {rules_text}
+and the details provided below:
+Occasion: {user_message}
+Temperature: {temp}
+{wardrobe_text}
 
-Additional guardrails:
-- The outfit may contain between 3 and 6 items.
-- It must include exactly one pair of shoes.
-- It must include exactly one pair of pants.
-- It must include between one and two tops.
-- It must include between one and two outerwear pieces (if applicable).
+Please generate your candidate outfit list with your chain-of-thought reasoning. Do NOT output the final JSON yet.
+"""
+        ),
+        HumanMessage(
+            content="Please generate your candidate outfit list with reasoning."
+        )
+    ]
+    
+    candidate_response = llm.invoke(candidate_messages)
+    candidate_output = candidate_response.content  # Contains reasoning and candidate list.
+    
+    # -----------------------
+    # Step 2: Refinement and Validation with Few-Shot Prompting
+    # -----------------------
+    refinement_messages = [
+        HumanMessage(
+            content=f"""
+Step 2: Refinement and Validation.
+Review the candidate outfit list you generated:
+{candidate_output}
+Now, ensure that the candidate outfit meets these guardrails:
+- Contains between 3 and 6 items.
+- Includes exactly one pair of shoes.
+- Includes exactly one pair of pants.
+- Contains between one and two tops.
+- Contains between one and two outerwear pieces (if applicable).
+If any rule is violated, adjust the candidate list accordingly.
 
-For each outfit item, include only the item id, sub type, and color.
-Your response must be a valid JSON object in the following format:
+Below are demonstration examples:
+
+Example 1 (Wedding):
+Candidate: [White Dress Shirt, Navy Suit Pants, Black Dress Shoes, Navy Suit Jacket]
+Refined Output: {{"occasion": "wedding", "outfit_items": [{{"id": "ex1_1", "sub_type": "White Dress Shirt", "color": "White"}}, {{"id": "ex1_2", "sub_type": "Navy Suit Pants", "color": "Navy"}}, {{"id": "ex1_3", "sub_type": "Black Dress Shoes", "color": "Black"}}, {{"id": "ex1_4", "sub_type": "Navy Suit Jacket", "color": "Navy"}}], "description": "An elegant and classic wedding ensemble."}}
+
+Example 2 (Dinner Party):
+Candidate: [Black Dress Shirt, Dark Jeans, Brown Loafers, Grey Blazer]
+Refined Output: {{"occasion": "dinner party", "outfit_items": [{{"id": "ex3_1", "sub_type": "Black Dress Shirt", "color": "Black"}}, {{"id": "ex3_2", "sub_type": "Dark Jeans", "color": "Dark Blue"}}, {{"id": "ex3_3", "sub_type": "Brown Loafers", "color": "Brown"}}, {{"id": "ex3_4", "sub_type": "Grey Blazer", "color": "Grey"}}], "description": "A stylish and contemporary outfit perfect for a dinner party."}}
+
+Example 3 (Gym):
+Candidate: [Athletic T-Shirt, Athletic Shorts, Running Shoes]
+Refined Output: {{"occasion": "gym", "outfit_items": [{{"id": "ex4_1", "sub_type": "Athletic T-Shirt", "color": "White"}}, {{"id": "ex4_2", "sub_type": "Athletic Shorts", "color": "Black"}}, {{"id": "ex4_3", "sub_type": "Running Shoes", "color": "Red"}}], "description": "A comfortable and mobile gym outfit."}}
+
+Example 4 (Job Interview):
+Candidate: [Light Blue Dress Shirt, Grey Slacks, Black Leather Dress Shoes, Charcoal Blazer]
+Refined Output: {{"occasion": "job interview", "outfit_items": [{{"id": "ex2_1", "sub_type": "Light Blue Dress Shirt", "color": "Light Blue"}}, {{"id": "ex2_2", "sub_type": "Grey Slacks", "color": "Grey"}}, {{"id": "ex2_3", "sub_type": "Black Leather Dress Shoes", "color": "Black"}}, {{"id": "ex2_4", "sub_type": "Charcoal Blazer", "color": "Charcoal"}}], "description": "A refined and professional outfit for a job interview."}}
+
+Now, using your refined reasoning and the guardrails provided above, output the final JSON object (with no extra text) in the following format:
 {{
   "occasion": "<occasion string>",
   "outfit_items": [
     {{"id": "<item id>", "sub_type": "<item sub type>", "color": "<item color>"}},
-    ... (between 3 and 6 items following the guardrails)
+    ... (3 to 6 items)
   ],
   "description": "<One short sentence describing the outfit>"
 }}
-Do not include any extra text.
-Below are two examples:
-            """
-        ),
-        HumanMessage(
-            content="Example 1 - Occasion: I need an outfit for a wedding. Temperature: 20C. Wardrobe: [Example wardrobe items]."
-        ),
-        AIMessage(
-            content='{"occasion": "wedding", "outfit_items": [{"id": "sbo1823y4ic73es", "sub_type": "White dress shirt", "color": "white"}, {"id": "ae8wciq3byebh2398y", "sub_type": "Navy blue suit pants", "color": "navy"}, {"id": "ab38592018cnwinxuyd", "sub_type": "Black dress shoes", "color": "black"}, {"id": "c1bq82wneyq82wyebq8wi", "sub_type": "Navy blue suit jacket", "color": "navy"}], "description": "This ensemble is classic, elegant, and perfect for a wedding."}'
-        ),
-        HumanMessage(
-            content="Example 2 - Occasion: I need an outfit for a job interview. Temperature: 20C. Wardrobe: [Example wardrobe items]."
-        ),
-        AIMessage(
-            content='{"occasion": "job interview", "outfit_items": [{"id": "w1209e7uqd8ahsjmzx", "sub_type": "Light blue dress shirt", "color": "light blue"}, {"id": "eq0ad8yzhiuhbxq28eu", "sub_type": "Grey slacks", "color": "grey"}, {"id": "12846nqiwuaahjshdaj", "sub_type": "Black leather dress shoes", "color": "black"}, {"id": "2817c2basduhwneiuwq", "sub_type": "Charcoal blazer", "color": "charcoal"}], "description": "This outfit is professional and modern, making a strong impression."}'
-        ),
-        HumanMessage(
-            content=f"Now, Occasion: {user_message}. {wardrobe_text} Temperature: {temp}.\n### Output:"
-        ),
+"""
+        )
     ]
     
-    response = llm.invoke(messages)
-    generated = response.content
+    final_response = llm.invoke(refinement_messages)
+    generated = final_response.content.strip()
+    
+    # Optionally remove stray chain-of-thought text if present.
     if "### Output:" in generated:
         generated = generated.split("### Output:")[-1].strip()
     
     try:
         outfit_json = json.loads(generated)
     except Exception as e:
-        # Fallback in case parsing fails.
         outfit_json = {
-            "occasion": "",
+            "occasion": target_occ,
             "outfit_items": [],
             "description": generated
         }
+    
+    # -----------------------
+    # Post-Processing: Validate candidate item IDs.
+    # -----------------------
+    valid_outfit_items = []
+    for candidate_item in outfit_json.get("outfit_items", []):
+        if candidate_item.get("id") in wardrobe_ids:
+            valid_outfit_items.append(candidate_item)
+        else:
+            logging.warning("Candidate item with id %s not found in wardrobe. Removing item.", candidate_item.get("id"))
+    outfit_json["outfit_items"] = valid_outfit_items
+    
+    # -----------------------
+    # Additional Check for Black Tie Events.
+    # -----------------------
+    if target_occ == "black tie event":
+        # Check for tuxedo and dress shoes.
+        found_tuxedo = any("tuxedo" in candidate_item.get("sub_type", "").lower() for candidate_item in outfit_json.get("outfit_items", []))
+        found_black_suit = any(("suit" in candidate_item.get("sub_type", "").lower() and candidate_item.get("color", "").lower() == "black") for candidate_item in outfit_json.get("outfit_items", []))
+        found_dress_shoes = any(("dress shoes" in candidate_item.get("sub_type", "").lower() or "oxford" in candidate_item.get("sub_type", "").lower()) for candidate_item in outfit_json.get("outfit_items", []))
+        
+        note = ""
+        if not found_tuxedo and not found_black_suit:
+            note += "Note: Black tie events require a tuxedo. Consider renting one if you do not have a proper tuxedo."
+        elif found_black_suit and not found_tuxedo:
+            note += "Note: Although you have a black suit, black tie events ideally require a tuxedo. Consider renting one."
+        
+        if not found_dress_shoes:
+            note += " Also, ensure you have appropriate dress shoes."
+        
+        if note:
+            outfit_json["description"] += " " + note
+    
     return outfit_json
 
-def setOccasion(item: ClothingItem) -> ClothingItem:
-    messages = [
-        SystemMessage(
-            content=(
-                f"Given a clothing item with the following details:\n"
-                f"Item type: {item.item_type}\n"
-                f"Material: {item.material}\n"
-                f"Color: {item.color}\n"
-                f"Formality: {item.formality}\n"
-                f"Pattern: {item.pattern}\n"
-                f"Fit: {item.fit}\n"
-                f"Suitable for weather: {item.suitable_for_weather}\n"
-                f"Sub-type: {item.sub_type}\n"
-                "Which occasion is it most suitable for? "
-                "Please choose from one of the following options:\n"
-                "white tie event, black tie event, job interview, dinner party, work, gym, "
-                "all occasions, casual outing, date night, party, general formal occasion, general informal occasion.\n"
-                "Note: 'black tie event' is reserved exclusively for items that belong to very formal attire categories. "
-                "If the clothing item does not represent that level of formality, do not select this option. Items in this category "
-                "include tuxedos and patent leather dress shoes.\n"
-                "Below are two output examples:"
-            )
-        ),
-        HumanMessage(
-            content="Example 1 - Item: tuxedo, a formal black tuxedo with a bow tie and cummerbund."
-        ),
-        AIMessage(
-            content="black tie event"
-        ),
-        HumanMessage(
-            content="Example 2 - Item: business suit, a tailored navy business suit with a white shirt and conservative tie."
-        ),
-        AIMessage(
-            content="job interview"
-        ),
-        HumanMessage(
-            content=f"Now, analyze the following item and choose the appropriate occasion from the list: {item.model_dump()}"
-        ),
-    ]
-    
-    response = llm.invoke(messages)
-    generated = response.content.strip()
-    print(generated)
 
-    allowed_occasions = [
-        "black tie event",
-        "job interview",
-        "dinner party",
-        "work",
-        "gym",
-        "all occasions",
-        "casual outing",
-        "party",
-        "general formal occasion",
-        "general informal occasion",
-    ]
+
+def setOccasion(item: ClothingItem) -> ClothingItem:
+    """
+    Updates the clothing item with one or more suitable occasion tags.
+    The model is prompted to return a JSON object with a key "occasions" mapping to a list.
+    Since the database expects a string, the list will be joined into a comma-separated string.
+    """
+    prompt = (
+        f"Given a clothing item with the following details:\n"
+        f"Item type: {item.item_type}\n"
+        f"Material: {item.material}\n"
+        f"Color: {item.color}\n"
+        f"Formality: {item.formality}\n"
+        f"Pattern: {item.pattern}\n"
+        f"Fit: {item.fit}\n"
+        f"Suitable for weather: {item.suitable_for_weather}\n"
+        f"Sub-type: {item.sub_type}\n\n"
+        "Which occasion(s) is this item most suitable for? Please choose one or more from the following list:\n"
+        f"{', '.join(ALLOWED_OCCASIONS)}\n\n"
+        "Return your answer as a JSON object with a single key \"occasions\" that maps to a list of occasion strings. "
+        "Do not output any extra text."
+    )
+    messages = [SystemMessage(content=prompt)]
     
-    response_lower = generated.lower()
-    chosen = "all occasions"  # default value
-    for option in allowed_occasions:
-        if option in response_lower:
-            chosen = option
-            break
+    try:
+        response = llm.invoke(messages)
+        generated = response.content.strip()
+        logging.info("setOccasion LLM response: %s", generated)
+        # Parse the response as JSON.
+        parsed = json.loads(generated)
+        occasions = parsed.get("occasions", [])
+        # Ensure only allowed options are returned.
+        valid_occasions = [opt for opt in occasions if opt in ALLOWED_OCCASIONS]
+        if not valid_occasions:
+            valid_occasions = ["all occasions"]
+    except Exception as e:
+        logging.error("Error in setOccasion: %s", e)
+        valid_occasions = ["all occasions"]
     
-    item.suitable_for_occasion = chosen
+    # Join the list into a comma-separated string.
+    item.suitable_for_occasion = ", ".join(valid_occasions)
     return item
+
+# TODO (Step 4): Incorporate dynamic context from user preferences and historical outfit choices.
+# TODO (Step 5): Enhance fallback and error handling if the generated JSON is invalid.
+# TODO (Step 6): Implement an interactive feedback loop to refine outfit suggestions based on user input.
