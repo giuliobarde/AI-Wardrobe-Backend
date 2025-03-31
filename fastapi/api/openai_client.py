@@ -11,10 +11,10 @@ from pydantic import BaseModel
 load_dotenv()
 openai_api_key = os.getenv("OPENAI_API_KEY")
 
-# Initialize the OpenAI Chat model via LangChain with adjusted sampling parameters.
+# Initialize the OpenAI Chat model via LangChain with a default sampling parameter.
 llm = ChatOpenAI(
     openai_api_key=openai_api_key,
-    temperature=0.5,  # Adjusted temperature for some diversity.
+    temperature=0.5,
     top_p=1,
     model_name="gpt-3.5-turbo"
 )
@@ -222,15 +222,19 @@ def determine_occasions(user_message: str) -> str:
             return occ
     return "all occasions"
 
-def generateOutfit(user_message: str, temp: str, wardrobe_items: list[dict]) -> dict:
+def generateOutfit(user_message: str, outside_temp: str, wardrobe_items: list[dict]) -> dict:
     """
-    Generates an outfit suggestion based on the user's message, current temperature,
+    Generates an outfit suggestion based on the user's message, the outside temperature,
     and the items in the user's wardrobe.
     
     This function uses a two-step chain-of-thought process with few-shot prompting.
     Additionally, for black tie events, it verifies that the generated outfit includes
     a tuxedo or an acceptable black suit and a pair of dress shoes.
-    If the candidate does not meet these criteria, a suggestion to rent a tuxedo is appended.
+    
+    The generation temperature is set dynamically based on the formality of the occasion:
+      - More formal occasions (e.g., "black tie event") use a lower generation temperature (0.1).
+      - More informal occasions (e.g., "general informal occasion") use a higher generation temperature (0.7).
+    The provided outside_temp (e.g., "20C") is still included in the prompt.
     
     Returns a dictionary in the following JSON format:
     {
@@ -246,6 +250,26 @@ def generateOutfit(user_message: str, temp: str, wardrobe_items: list[dict]) -> 
     target_occ = determine_occasions(user_message)
     config = occasion_config.get(target_occ, occasion_config["all occasions"])
     
+    # Determine generation temperature based on occasion formality.
+    occasion_temperature = {
+        "white tie event": 0.1,
+        "black tie event": 0.1,
+        "job interview": 0.2,
+        "dinner party": 0.4,
+        "work": 0.4,
+        "gym": 0.7,
+        "all occasions": 0.5,
+        "casual outing": 0.7,
+        "date night": 0.6,
+        "party": 0.6,
+        "general formal occasion": 0.2,
+        "general informal occasion": 0.7,
+    }
+    generation_temp = occasion_temperature.get(target_occ, 0.5)
+    
+    # Update the LLM's generation temperature dynamically.
+    llm.temperature = generation_temp
+
     # Build the rules text.
     rules_text = (
         f"Allowed items: {', '.join(config['items']) if config['items'] else 'Any'}, "
@@ -274,7 +298,7 @@ def generateOutfit(user_message: str, temp: str, wardrobe_items: list[dict]) -> 
         )
         formatted_items.append(formatted_item)
     wardrobe_text = "The user's wardrobe includes: " + " | ".join(formatted_items) + "."
-    
+
     # -----------------------
     # Step 1: Candidate Generation with Few-Shot Prompting
     # -----------------------
@@ -287,7 +311,7 @@ Below are four demonstration examples with chain-of-thought reasoning.
 IMPORTANT: Only select items that exist in the provided wardrobe (i.e. with matching Item IDs).
 
 Example 1:
-User: "I need an outfit for a wedding. Temperature: 20C. Wardrobe: [Example wardrobe items]."
+User: "I need an outfit for a wedding. Outside Temperature: 20C. Wardrobe: [Example wardrobe items]."
 Assistant Reasoning: For a wedding, a formal and elegant outfit is needed. Considering a white dress shirt, navy suit pants, black dress shoes, and a navy suit jacket, this combination creates an elegant, classic look.
 Candidate Outfit: 
 - Item ID: ex1_1, Sub Type: White Dress Shirt, Color: White
@@ -296,7 +320,7 @@ Candidate Outfit:
 - Item ID: ex1_4, Sub Type: Navy Suit Jacket, Color: Navy
 
 Example 2:
-User: "I need an outfit for a dinner party. Temperature: 18C. Wardrobe: [Example wardrobe items]."
+User: "I need an outfit for a dinner party. Outside Temperature: 18C. Wardrobe: [Example wardrobe items]."
 Assistant Reasoning: For a dinner party, the outfit should be stylish yet not overly formal. A black dress shirt, dark jeans, brown loafers, and a grey blazer create a modern and sophisticated look.
 Candidate Outfit:
 - Item ID: ex3_1, Sub Type: Black Dress Shirt, Color: Black
@@ -305,7 +329,7 @@ Candidate Outfit:
 - Item ID: ex3_4, Sub Type: Grey Blazer, Color: Grey
 
 Example 3:
-User: "I need an outfit for the gym. Temperature: 22C. Wardrobe: [Example wardrobe items]."
+User: "I need an outfit for the gym. Outside Temperature: 22C. Wardrobe: [Example wardrobe items]."
 Assistant Reasoning: For the gym, comfort and mobility are most important. An athletic t-shirt, athletic shorts, and running shoes ensure freedom of movement and comfort.
 Candidate Outfit:
 - Item ID: ex4_1, Sub Type: Athletic T-Shirt, Color: White
@@ -313,7 +337,7 @@ Candidate Outfit:
 - Item ID: ex4_3, Sub Type: Running Shoes, Color: Red
 
 Example 4:
-User: "I need an outfit for a job interview. Temperature: 20C. Wardrobe: [Example wardrobe items]."
+User: "I need an outfit for a job interview. Outside Temperature: 20C. Wardrobe: [Example wardrobe items]."
 Assistant Reasoning: For a job interview, professionalism is key. A light blue dress shirt, grey slacks, black leather dress shoes, and a charcoal blazer form a refined and professional ensemble.
 Candidate Outfit:
 - Item ID: ex2_1, Sub Type: Light Blue Dress Shirt, Color: Light Blue
@@ -325,7 +349,7 @@ Now, using the following rules:
 {rules_text}
 and the details provided below:
 Occasion: {user_message}
-Temperature: {temp}
+Outside Temperature: {outside_temp}
 {wardrobe_text}
 
 Please generate your candidate outfit list with your chain-of-thought reasoning. Do NOT output the final JSON yet.
@@ -436,8 +460,6 @@ Now, using your refined reasoning and the guardrails provided above, output the 
             outfit_json["description"] += " " + note
     
     return outfit_json
-
-
 
 def setOccasion(item: ClothingItem) -> ClothingItem:
     """
