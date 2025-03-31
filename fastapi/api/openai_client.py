@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import logging
 from typing import Set
@@ -14,7 +15,7 @@ openai_api_key = os.getenv("OPENAI_API_KEY")
 # Initialize the OpenAI Chat model via LangChain with a default sampling parameter.
 llm = ChatOpenAI(
     openai_api_key=openai_api_key,
-    temperature=0.5,
+    temperature=0.5,  # Default generation temperature; will be updated dynamically.
     top_p=1,
     model_name="gpt-3.5-turbo"
 )
@@ -31,9 +32,11 @@ class ClothingItem(BaseModel):
     suitable_for_occasion: str
     sub_type: str
 
+# Allowed occasions now includes a new "very formal occasion"
 ALLOWED_OCCASIONS = [
     "white tie event",
     "black tie event",
+    "very formal occasion",
     "job interview",
     "dinner party",
     "work",
@@ -48,6 +51,18 @@ ALLOWED_OCCASIONS = [
 
 # Dictionary mapping allowed occasions to configuration details.
 occasion_config = {
+    "white tie event": {
+        "items": [
+            "Tailcoat",
+            "Dress Shirt",
+            "Tuxedo Pants",
+            "Dress Pants",
+            "Patent Leather Oxfords"
+        ],
+        "rules": "Must adhere to the highest level of formality; only very formal items allowed.",
+        "strictness": "Extremely strict",
+        "description": "White tie is the most formal dress code, reserved for very special events."
+    },
     "black tie event": {
         "items": [
             "Tuxedo Jacket",
@@ -64,6 +79,19 @@ occasion_config = {
         "rules": "Only if strictly required; must not use any lower-formality items.",
         "strictness": "Extremely strict",
         "description": "Black tie is an extremely high level of formality, and it should only be worn on special occasions, typically after 6pm."
+    },
+    "very formal occasion": {
+        "items": [
+            "Tailcoat",
+            "Tuxedo Jacket",
+            "Dress Shirt",
+            "Dress Pants",
+            "Patent Leather Oxfords",
+            "Formal Dress Shoes"
+        ],
+        "rules": "Only high formal items allowed. Strict dress code; no casual items.",
+        "strictness": "Very strict",
+        "description": "A very formal occasion demands the utmost elegance and sophistication."
     },
     "job interview": {
         "items": [
@@ -163,6 +191,19 @@ occasion_config = {
         "strictness": "Low",
         "description": "For casual outings, choose relaxed and comfortable clothing."
     },
+    "date night": {
+        "items": [
+            "Casual Shirt",
+            "Jeans",
+            "Chinos",
+            "Sneakers",
+            "Loafers",
+            "Blazer"
+        ],
+        "rules": "Should be stylish yet approachable.",
+        "strictness": "Moderate",
+        "description": "An outfit that is both attractive and comfortable for a date."
+    },
     "party": {
         "items": [
             "Casual Shirt",
@@ -211,15 +252,50 @@ occasion_config = {
     }
 }
 
-def determine_occasions(user_message: str) -> str:
+def determineOccasions(user_message: str) -> str:
     """
-    Determines the target occasion from the user's message using simple keyword matching.
-    Returns one of the keys in occasion_config or defaults to "all occasions".
+    Determines the target occasion from the user's message using a two-step process:
+    
+    1. Exact Matching:
+       - Converts the input to lowercase and iterates over the allowed occasion phrases
+         (from occasion_config) sorted by descending length.
+       - Uses regular expressions with word boundaries to ensure that only whole phrases match.
+         
+    2. Synonyms/Fallback:
+       - If no direct match is found, it checks a synonyms mapping for alternate terms or abbreviations.
+       - This also handles phrases like "very formal" by mapping them directly to "very formal occasion".
+         
+    Returns:
+        A string representing one of the keys in occasion_config. Defaults to "all occasions" if no match is found.
     """
     lower_msg = user_message.lower()
-    for occ in occasion_config.keys():
-        if occ in lower_msg:
+    
+    # Step 1: Exact matching with allowed phrases sorted by length (longest first).
+    for occ in sorted(occasion_config.keys(), key=len, reverse=True):
+        pattern = r'\b' + re.escape(occ) + r'\b'
+        if re.search(pattern, lower_msg):
             return occ
+
+    # Step 2: Synonyms mapping for common alternate phrases.
+    synonyms = {
+        "very formal": "very formal occasion",
+        "black tie": "black tie event",
+        "white tie": "white tie event",
+        "interview": "job interview",
+        "dinner": "dinner party",
+        "office": "work",
+        "gym": "gym",
+        "casual": "casual outing",
+        "date": "date night",
+        "party": "party",
+        "formal": "general formal occasion",
+        "informal": "general informal occasion"
+    }
+    for key, value in synonyms.items():
+        pattern = r'\b' + re.escape(key) + r'\b'
+        if re.search(pattern, lower_msg):
+            return value
+
     return "all occasions"
 
 def generateOutfit(user_message: str, outside_temp: str, wardrobe_items: list[dict]) -> dict:
@@ -228,32 +304,33 @@ def generateOutfit(user_message: str, outside_temp: str, wardrobe_items: list[di
     and the items in the user's wardrobe.
     
     This function uses a two-step chain-of-thought process with few-shot prompting.
-    Additionally, for black tie events, it verifies that the generated outfit includes
-    a tuxedo or an acceptable black suit and a pair of dress shoes.
+    For black tie and very formal events, it ensures that the outfit includes the required formal items.
     
-    The generation temperature is set dynamically based on the formality of the occasion:
-      - More formal occasions (e.g., "black tie event") use a lower generation temperature (0.1).
+    The generation temperature is set dynamically based on the occasion's formality:
+      - More formal occasions (e.g., "black tie event", "very formal occasion") use a lower generation temperature (0.1).
       - More informal occasions (e.g., "general informal occasion") use a higher generation temperature (0.7).
     The provided outside_temp (e.g., "20C") is still included in the prompt.
     
-    Returns a dictionary in the following JSON format:
-    {
-      "occasion": "<occasion string>",
-      "outfit_items": [
-         {"id": "<item id>", "sub_type": "<item sub type>", "color": "<item color>"},
-         ... (between 3 and 6 items following the guardrails)
-      ],
-      "description": "<One short sentence describing the outfit>"
-    }
+    Returns:
+        A dictionary in the following JSON format:
+        {
+          "occasion": "<occasion string>",
+          "outfit_items": [
+             {"id": "<item id>", "sub_type": "<item sub type>", "color": "<item color>"},
+             ... (between 3 and 6 items)
+          ],
+          "description": "<One short sentence describing the outfit>"
+        }
     """
     # Determine target occasion.
-    target_occ = determine_occasions(user_message)
+    target_occ = determineOccasions(user_message)
     config = occasion_config.get(target_occ, occasion_config["all occasions"])
     
     # Determine generation temperature based on occasion formality.
     occasion_temperature = {
         "white tie event": 0.1,
         "black tie event": 0.1,
+        "very formal occasion": 0.2,
         "job interview": 0.2,
         "dinner party": 0.4,
         "work": 0.4,
@@ -262,7 +339,7 @@ def generateOutfit(user_message: str, outside_temp: str, wardrobe_items: list[di
         "casual outing": 0.7,
         "date night": 0.6,
         "party": 0.6,
-        "general formal occasion": 0.2,
+        "general formal occasion": 0.3,
         "general informal occasion": 0.7,
     }
     generation_temp = occasion_temperature.get(target_occ, 0.5)
@@ -439,23 +516,24 @@ Now, using your refined reasoning and the guardrails provided above, output the 
     outfit_json["outfit_items"] = valid_outfit_items
     
     # -----------------------
-    # Additional Check for Black Tie Events.
+    # Additional Check for Black Tie and Very Formal Events.
     # -----------------------
-    if target_occ == "black tie event":
-        # Check for tuxedo and dress shoes.
-        found_tuxedo = any("tuxedo" in candidate_item.get("sub_type", "").lower() for candidate_item in outfit_json.get("outfit_items", []))
-        found_black_suit = any(("suit" in candidate_item.get("sub_type", "").lower() and candidate_item.get("color", "").lower() == "black") for candidate_item in outfit_json.get("outfit_items", []))
-        found_dress_shoes = any(("dress shoes" in candidate_item.get("sub_type", "").lower() or "oxford" in candidate_item.get("sub_type", "").lower()) for candidate_item in outfit_json.get("outfit_items", []))
+    if target_occ in ["black tie event", "very formal occasion"]:
+        # Check for tuxedo, tailcoat, or dress suit and for dress shoes.
+        found_formal_top = any(
+            any(keyword in candidate_item.get("sub_type", "").lower() for keyword in ["tuxedo", "tailcoat", "suit"])
+            for candidate_item in outfit_json.get("outfit_items", [])
+        )
+        found_dress_shoes = any(
+            "dress shoes" in candidate_item.get("sub_type", "").lower() or "oxford" in candidate_item.get("sub_type", "").lower()
+            for candidate_item in outfit_json.get("outfit_items", [])
+        )
         
         note = ""
-        if not found_tuxedo and not found_black_suit:
-            note += "Note: Black tie events require a tuxedo. Consider renting one if you do not have a proper tuxedo."
-        elif found_black_suit and not found_tuxedo:
-            note += "Note: Although you have a black suit, black tie events ideally require a tuxedo. Consider renting one."
-        
+        if not found_formal_top:
+            note += "Note: Formal occasions require a tuxedo, tailcoat, or equivalent formal suit. Consider renting one if necessary."
         if not found_dress_shoes:
             note += " Also, ensure you have appropriate dress shoes."
-        
         if note:
             outfit_json["description"] += " " + note
     
