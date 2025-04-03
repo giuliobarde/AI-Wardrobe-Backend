@@ -8,7 +8,7 @@ from auth import (
     sign_out_db, 
     get_current_user
 )
-from openai_client import generateOutfit, setOccasion
+from openai_client import generateOutfit, setImage, setOccasion
 from wardrobe_db import (
     add_clothing_item_db,
     delete_clothing_item_db,
@@ -106,6 +106,7 @@ async def sign_out(user=Depends(get_current_user)):
 @app.post("/add_clothing_item/")
 async def add_clothing_item(item: ClothingItem, user=Depends(get_current_user)):
     setOccasion(item)
+    setImage(item)
     item.user_id = user.id
     return add_clothing_item_db(item)
 
