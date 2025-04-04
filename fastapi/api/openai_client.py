@@ -512,37 +512,33 @@ def setOccasion(item: ClothingItem) -> ClothingItem:
 
 def generateImage(item: ClothingItem) -> bytes:
     """
-    Generates a minimalistic, emoji-style image representing the clothing item.
+    Generates a minimalistic, Apple emoji-inspired image representing the clothing item.
     Returns the image as bytes.
     """
+    # Updated prompt template inspired by Apple emojis with strict adherence to specifications
     template = (
-        "Generate a minimalistic, emoji-style icon for a clothing item with the following details:\n"
+        "Generate a minimalistic, Apple emoji-inspired icon for a clothing item with the following details:\n"
         "Material: {material}\n"
         "Color: {color}\n"
         "Formality: {formality}\n"
         "Pattern: {pattern}\n"
         "Sub-type: {sub_type}\n"
-        "The icon should be simple, vivid, and easily recognizable."
+        "The icon should be simple, vivid, and easily recognizable. "
+        "Emphasize smooth curves, clean lines, subtle gradients, and a glossy finish similar to Apple's emoji style. "
+        "Strictly follow the above specifications."
+        "If the pattern is 'solid', do not include any additional design or decorative elements; the item must appear plain."
     )
-    
-    prompt_template = PromptTemplate(
-        input_variables=["material", "color", "formality", "pattern", "sub_type"],
-        template=template
+
+    prompt_text = template.format(
+        material=item.material,
+        color=item.color,
+        formality=item.formality,
+        pattern=item.pattern,
+        sub_type=item.sub_type
     )
-    
-    chain = LLMChain(llm=llm, prompt=prompt_template)
-    
+
     try:
-        # Run the chain by passing a dictionary with the required fields.
-        chain_result = chain.run({
-            "material": item.material,
-            "color": item.color,
-            "formality": item.formality,
-            "pattern": item.pattern,
-            "sub_type": item.sub_type
-        })
-        # Assume DallEAPIWrapper() is defined elsewhere and returns image bytes.
-        image_bytes = DallEAPIWrapper().run(chain_result)
+        image_bytes = DallEAPIWrapper().run(prompt_text)
         return image_bytes
     except Exception as e:
         logging.error("Error generating image: %s", e)
