@@ -1,4 +1,3 @@
-import base64
 import os
 import re
 import json
@@ -7,11 +6,9 @@ from typing import Set
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
-from langchain.chains import LLMChain
 from langchain_community.utilities.dalle_image_generator import DallEAPIWrapper
 from langchain_core.prompts import PromptTemplate
 from pydantic import BaseModel
-from images import add_new_item_image
 
 
 # Load environment variables
@@ -520,7 +517,6 @@ def generateImage(item: ClothingItem) -> bytes:
         "Generate a minimalistic, Apple emoji-inspired icon for a clothing item with the following details:\n"
         "Material: {material}\n"
         "Color: {color}\n"
-        "Formality: {formality}\n"
         "Pattern: {pattern}\n"
         "Sub-type: {sub_type}\n"
         "The icon should be simple, vivid, and easily recognizable. "
@@ -532,7 +528,6 @@ def generateImage(item: ClothingItem) -> bytes:
     prompt_text = template.format(
         material=item.material,
         color=item.color,
-        formality=item.formality,
         pattern=item.pattern,
         sub_type=item.sub_type
     )
@@ -544,13 +539,6 @@ def generateImage(item: ClothingItem) -> bytes:
         logging.error("Error generating image: %s", e)
         raise e
 
-def setImage(item: ClothingItem):
-    """
-    Generates an emoji-like image for the clothing item and uploads it.
-    """
-    image_bytes = generateImage(item)
-    upload_result = add_new_item_image(image_bytes)
-    return upload_result
 
 # TODO: Incorporate dynamic context from user preferences and historical outfit choices.
 # TODO: Enhance fallback and error handling if the generated JSON is invalid.

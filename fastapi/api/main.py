@@ -8,7 +8,7 @@ from auth import (
     sign_out_db, 
     get_current_user
 )
-from openai_client import generateOutfit, setImage, setOccasion
+from openai_client import generateOutfit, setOccasion
 from wardrobe_db import (
     add_clothing_item_db,
     delete_clothing_item_db,
@@ -19,6 +19,7 @@ from wardrobe_db import (
 from user_details import (
     update_user_profile_db
 )
+from images import set_image
 from database import supabase
 from datetime import datetime, timedelta, timezone
 
@@ -106,7 +107,7 @@ async def sign_out(user=Depends(get_current_user)):
 @app.post("/add_clothing_item/")
 async def add_clothing_item(item: ClothingItem, user=Depends(get_current_user)):
     setOccasion(item)
-    setImage(item)
+    set_image(item)
     item.user_id = user.id
     return add_clothing_item_db(item)
 
