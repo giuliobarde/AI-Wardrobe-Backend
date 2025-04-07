@@ -4,6 +4,7 @@ import requests
 from fastapi import HTTPException
 from database import supabase
 from openai_client import ClothingItem
+from openai_client import generateImage
 
 def add_new_image(file):
     """
@@ -49,7 +50,7 @@ def add_new_item_image(file, item: ClothingItem):
     
     # Construct the public URL for the uploaded image.
     # Adjust this based on your Supabase URL and bucket configuration.
-    SUPABASE_URL = "https://<image_items>.supabase.co"
+    SUPABASE_URL = "https://qniouzdixmmtftnlkevs.supabase.co"
     bucket = "clothing-emojies"
     filename = upload_result.get("filename")
     if not filename:
@@ -62,7 +63,7 @@ def add_new_item_image(file, item: ClothingItem):
         "color": item.color,
         "pattern": item.pattern,
         "sub_type": item.sub_type,
-        "link": image_link,
+        "image_link": image_link,
     }
     
     # Insert the record into the image_items table.
@@ -71,13 +72,24 @@ def add_new_item_image(file, item: ClothingItem):
 
 def set_image(item: ClothingItem):
     """
-    Generates an emoji-like image for the clothing item and uploads it.
-    Then inserts the image attributes along with the image link into the image_items table.
+    Generates an emoji-like image for the clothing item and uploads it,
+    but only if there is no existing image in the image_items table with the same
+    material, color, pattern, and sub_type. If an image already exists, nothing happens.
     """
-    # Generate image bytes from the ClothingItem instance.
-    from openai_client import generateImage  # Ensure generateImage is imported here if not globally
-    image_bytes = generateImage(item)
-    
-    # Upload image and add a record in the image_items table.
-    upload_result = add_new_item_image(image_bytes, item)
-    return upload_result
+    # Query the image_items table for an existing image with matching attributes.
+    query_response = supabase.table("image_items").select("*") \
+        .eq("material", item.material) \
+        .eq("color", item.color) \
+        .eq("pattern", item.pattern) \
+        .eq("sub_type", item.sub_type) \
+        .execute()
+
+    if query_response.data and len(query_response.data) > 0:
+        logging.info("Image already exists with the same attributes; skipping generation.")
+        return {"message": "Image already exists", "data": query_response.data}
+    else:
+        # No matching image exists, so generate a new image.
+        image_bytes = generateImage(item)
+        # Upload image and insert a new record in the image_items table.
+        add_new_item_image(image_bytes, item)
+    return
