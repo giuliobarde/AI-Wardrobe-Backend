@@ -14,6 +14,7 @@ def add_clothing_item_db(item):
             "suitable_for_weather": item.suitable_for_weather,
             "suitable_for_occasion": item.suitable_for_occasion,
             "sub_type": item.sub_type,
+            "image_link": item.image_link
         }
         item_response = supabase.table("clothing_items").insert(item_data).execute()
         item_error = getattr(item_response, "error", None)

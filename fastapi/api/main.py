@@ -1,3 +1,4 @@
+from typing import Optional
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -21,7 +22,6 @@ from user_details import (
 )
 from images import set_image
 from database import supabase
-from datetime import datetime, timedelta, timezone
 
 app = FastAPI()
 
@@ -50,6 +50,7 @@ class ClothingItem(BaseModel):
     suitable_for_weather: str
     suitable_for_occasion: str
     sub_type: str
+    image_link: Optional[str] = None
 
 class UserPreference(BaseModel):
     user_id: str

@@ -1,10 +1,23 @@
 import logging
 import uuid
+from pydantic import BaseModel
 import requests
 from fastapi import HTTPException
 from database import supabase
-from openai_client import ClothingItem
 from openai_client import generateImage
+
+class ClothingItem(BaseModel):
+    user_id: str
+    item_type: str
+    material: str
+    color: str
+    formality: str
+    pattern: str
+    fit: str
+    suitable_for_weather: str
+    suitable_for_occasion: str
+    sub_type: str
+    image_link: str
 
 def add_new_image(file):
     """
@@ -72,9 +85,11 @@ def add_new_item_image(file, item: ClothingItem):
 
 def set_image(item: ClothingItem):
     """
-    Generates an emoji-like image for the clothing item and uploads it,
-    but only if there is no existing image in the image_items table with the same
-    material, color, pattern, and sub_type. If an image already exists, nothing happens.
+    Checks if an image for the clothing item (based on material, color, pattern, and sub_type)
+    already exists in the image_items table. 
+    - If an image is found, sets item.image_link from the existing record and returns the record.
+    - If not, generates an emoji-like image using generateImage, uploads it via add_new_item_image,
+      sets item.image_link using the newly created record, and returns that record.
     """
     # Query the image_items table for an existing image with matching attributes.
     query_response = supabase.table("image_items").select("*") \
@@ -85,11 +100,18 @@ def set_image(item: ClothingItem):
         .execute()
 
     if query_response.data and len(query_response.data) > 0:
-        logging.info("Image already exists with the same attributes; skipping generation.")
+        logging.info("Image already exists with the same attributes; using existing image.")
+        # Assume we use the first returned record.
+        item.image_link = query_response.data[0]["image_link"]
         return {"message": "Image already exists", "data": query_response.data}
     else:
         # No matching image exists, so generate a new image.
         image_bytes = generateImage(item)
         # Upload image and insert a new record in the image_items table.
-        add_new_item_image(image_bytes, item)
-    return
+        upload_result = add_new_item_image(image_bytes, item)
+        # Extract the newly created image link from the insert result.
+        if upload_result.data and len(upload_result.data) > 0:
+            item.image_link = upload_result.data[0]["image_link"]
+            return {"message": "New image created", "data": upload_result.data}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to create new image record")

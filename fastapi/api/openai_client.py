@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from langchain_community.utilities.dalle_image_generator import DallEAPIWrapper
-from langchain_core.prompts import PromptTemplate
 from pydantic import BaseModel
 
 
@@ -34,6 +33,7 @@ class ClothingItem(BaseModel):
     suitable_for_weather: str
     suitable_for_occasion: str
     sub_type: str
+    image_link: str
 
 # Allowed occasions now includes a new "very formal occasion"
 ALLOWED_OCCASIONS = [
