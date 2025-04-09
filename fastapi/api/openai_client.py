@@ -5,10 +5,12 @@ import logging
 from typing import Set
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_community.utilities.dalle_image_generator import DallEAPIWrapper
 from pydantic import BaseModel
 
+from openai import OpenAI
+import requests
 
 # Load environment variables
 load_dotenv()
@@ -509,35 +511,51 @@ def setOccasion(item: ClothingItem) -> ClothingItem:
 
 def generateImage(item: ClothingItem) -> bytes:
     """
-    Generates a minimalistic, Apple emoji-inspired image representing the clothing item.
-    Returns the image as bytes.
+    Generates an Apple emoji style illustration of a clothing item using DALL·E 3.
+    Constructs a prompt from the provided attributes and calls the OpenAI API.
+    
+    :param item: ClothingItem instance with attributes material, color, pattern, sub_type.
+    :return: Generated image as raw PNG bytes.
     """
-    # Updated prompt template inspired by Apple emojis with strict adherence to specifications
-    template = (
-        "Generate a minimalistic, Apple emoji-inspired icon for a clothing item with the following details:\n"
-        "Material: {material}\n"
-        "Color: {color}\n"
-        "Pattern: {pattern}\n"
-        "Sub-type: {sub_type}\n"
-        "The icon should be simple, vivid, and easily recognizable. "
-        "Emphasize smooth curves, clean lines, subtle gradients, and a glossy finish similar to Apple's emoji style. "
-        "Strictly follow the above specifications."
-        "If the pattern is 'solid', do not include any additional design or decorative elements; the item must appear plain."
+    # Create a more detailed and specific prompt for better results
+    prompt = (
+        f"A high-quality Apple emoji style illustration of a {item.color} {item.material} {item.sub_type} "
+        f"with a {item.pattern} pattern. The illustration should be simple, glossy, minimalistic, "
+        f"and vector-like, centered on a pure white background. The clothing item should be "
+        f"well-lit with soft shadows to highlight its shape. The image should have "
+        f"clean edges and vibrant colors typical of Apple's emoji aesthetic, with no text or "
+        f"additional elements in the frame."
     )
-
-    prompt_text = template.format(
-        material=item.material,
-        color=item.color,
-        pattern=item.pattern,
-        sub_type=item.sub_type
-    )
-
+    
     try:
-        image_bytes = DallEAPIWrapper().run(prompt_text)
-        return image_bytes
+        # Initialize the OpenAI client
+        client = OpenAI()
+        
+        # Call DALL·E 3 via OpenAI's API with enhanced parameters
+        response = client.images.generate(
+            model="dall-e-3",
+            prompt=prompt,
+            n=1,
+            size="1024x1024",  # Using highest resolution for better quality
+            quality="hd",      # Use HD quality for more detailed images
+            response_format="url",
+            style="vivid"      # For more vibrant and detailed output
+        )
     except Exception as e:
-        logging.error("Error generating image: %s", e)
-        raise e
+        # Provide more detailed error information
+        raise Exception(f"Failed to generate image via DALL·E 3: {str(e)}")
+    
+    # Retrieve the URL of the generated image
+    image_url = response.data[0].url
+    
+    try:
+        # Download the image data from the URL with timeout and error handling
+        r = requests.get(image_url, timeout=30)
+        r.raise_for_status()  # Will raise an exception for HTTP errors
+        
+        return r.content
+    except requests.exceptions.RequestException as e:
+        raise Exception(f"Failed to download the generated image: {str(e)}")
 
 
 # TODO: Incorporate dynamic context from user preferences and historical outfit choices.
