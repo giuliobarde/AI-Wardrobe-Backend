@@ -1,5 +1,3 @@
-# user_details.py
-
 from fastapi import HTTPException
 from database import supabase
 

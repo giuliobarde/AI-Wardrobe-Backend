@@ -9,19 +9,26 @@ from auth import (
     sign_out_db, 
     get_current_user
 )
-from openai_client import generateOutfit, setOccasion
+from openai_client import (
+    generateOutfit, 
+    setOccasion
+)
 from wardrobe_db import (
     add_clothing_item_db,
     delete_clothing_item_db,
     get_user_items_db,
     get_item_by_id_db,
-    get_all_user_items_db  # New helper for all items
+    get_all_user_items_db
 )
 from user_details import (
     update_user_profile_db
 )
+from outfits import (
+    add_saved_outfit_db
+)
 from images import set_image
 from database import supabase
+from typing import List, Dict
 
 app = FastAPI()
 
@@ -79,6 +86,12 @@ class UpdateProfile(BaseModel):
     last_name: str
     username: str
 
+class OutfitData(BaseModel):
+    user_id: str
+    items: List[Dict]
+    occasion: str
+    favourite: bool = False
+
 # AI Chatbot Endpoint
 @app.post("/chat/")
 def chat(request: ChatRequest, user=Depends(get_current_user)):
@@ -125,7 +138,6 @@ async def get_clothing_items(
     else:
         raise HTTPException(status_code=400, detail="Either item_type or item_id must be provided.")
 
-# New endpoint: Get all clothing items for the user, sorted by added_date (desc)
 @app.get("/clothing_items/all/")
 async def get_all_clothing_items(user=Depends(get_current_user)):
     return get_all_user_items_db(user)
@@ -146,3 +158,20 @@ async def add_user_preference(pref: UserPreference):
     if error:
         return {"error": error}
     return {"message": "User preference added", "data": data}
+
+# Outfit Endpoints
+@app.post("/add_saved_outfit/")
+async def add_saved_outfit(outfit: OutfitData):
+    return add_saved_outfit_db(outfit)
+
+@app.post("/remove_saved_outfit/")
+async def remove_saved_outfit():
+    return
+
+@app.post("/edit_favourite_outfit/")
+async def edit_favourite_outfit():
+    return
+
+@app.get("/get_favourite_outfits/")
+async def get_favourite_outfits():
+    return

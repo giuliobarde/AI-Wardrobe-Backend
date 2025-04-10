@@ -511,20 +511,20 @@ def setOccasion(item: ClothingItem) -> ClothingItem:
 
 def generateImage(item: ClothingItem) -> bytes:
     """
-    Generates an Apple emoji style illustration of a clothing item using DALL·E 3.
+    Generates an emoji-style illustration of a clothing item using DALL·E 3.
     Constructs a prompt from the provided attributes and calls the OpenAI API.
     
     :param item: ClothingItem instance with attributes material, color, pattern, sub_type.
     :return: Generated image as raw PNG bytes.
     """
-    # Create a more detailed and specific prompt for better results
+    # Modified prompt to avoid Apple logo inclusion
     prompt = (
-        f"A high-quality Apple emoji style illustration of a {item.color} {item.material} {item.sub_type} "
-        f"with a {item.pattern} pattern. The illustration should be simple, glossy, minimalistic, "
-        f"and vector-like, centered on a pure white background. The clothing item should be "
-        f"well-lit with soft shadows to highlight its shape. The image should have "
-        f"clean edges and vibrant colors typical of Apple's emoji aesthetic, with no text or "
-        f"additional elements in the frame."
+        f"Create a minimalist emoji-style illustration of a {item.color} {item.material} {item.sub_type} "
+        f"with a {item.pattern} pattern. The illustration must be simple, glossy, and vector-like, "
+        f"centered on a pure white background. The clothing item should be well-lit with subtle shadows "
+        f"to define its shape. Use clean lines and vibrant colors in a modern emoji aesthetic. "
+        f"IMPORTANT: Do not include any logos, text, watermarks, or brand identifiers of any kind. "
+        f"The image should only show the clothing item itself with absolutely no Apple logo or any other symbol."
     )
     
     try:
@@ -536,10 +536,10 @@ def generateImage(item: ClothingItem) -> bytes:
             model="dall-e-3",
             prompt=prompt,
             n=1,
-            size="1024x1024",  # Using highest resolution for better quality
-            quality="hd",      # Use HD quality for more detailed images
+            size="1024x1024",
+            quality="hd",
             response_format="url",
-            style="vivid"      # For more vibrant and detailed output
+            style="natural"  # Changed to natural style to reduce branding elements
         )
     except Exception as e:
         # Provide more detailed error information
