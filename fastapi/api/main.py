@@ -24,7 +24,8 @@ from user_details import (
     update_user_profile_db
 )
 from outfits import (
-    add_saved_outfit_db
+    add_saved_outfit_db,
+    get_saved_outfits_db
 )
 from images import set_image
 from database import supabase
@@ -165,13 +166,13 @@ async def add_saved_outfit(outfit: OutfitData):
     return add_saved_outfit_db(outfit)
 
 @app.post("/remove_saved_outfit/")
-async def remove_saved_outfit():
-    return
+async def remove_saved_outfit(user=Depends(get_current_user)):
+    return add_saved_outfit_db(user)
+
+@app.get("/get_saved_outfits/")
+async def get_saved_outfits(user=Depends(get_current_user)):
+    return get_saved_outfits_db(user)
 
 @app.post("/edit_favourite_outfit/")
 async def edit_favourite_outfit():
-    return
-
-@app.get("/get_favourite_outfits/")
-async def get_favourite_outfits():
     return
