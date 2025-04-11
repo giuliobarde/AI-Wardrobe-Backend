@@ -25,7 +25,8 @@ from user_details import (
 )
 from outfits import (
     add_saved_outfit_db,
-    get_saved_outfits_db
+    get_saved_outfits_db,
+    delete_saved_outfit_db
 )
 from images import set_image
 from database import supabase
@@ -79,8 +80,8 @@ class SigninUser(BaseModel):
     identifier: str  # Can be either email or username
     password: str    
 
-class DeleteItem(BaseModel):
-    item_id: str
+class DeleteByID(BaseModel):
+    id: str
 
 class UpdateProfile(BaseModel):
     first_name: str
@@ -93,6 +94,7 @@ class OutfitData(BaseModel):
     occasion: str
     favourite: bool = False
 
+
 # AI Chatbot Endpoint
 @app.post("/chat/")
 def chat(request: ChatRequest, user=Depends(get_current_user)):
@@ -100,6 +102,7 @@ def chat(request: ChatRequest, user=Depends(get_current_user)):
     wardrobe_items = wardrobe_response.data if wardrobe_response.data else []
     outfit_response = generateOutfit(request.user_message, request.temp, wardrobe_items)
     return {"response": outfit_response}
+
 
 # Authentication Endpoints
 @app.post("/sign-up/")
@@ -117,6 +120,7 @@ async def get_session(user=Depends(get_current_user)):
 @app.post("/sign-out/")
 async def sign_out(user=Depends(get_current_user)):
     return sign_out_db(user)
+
 
 # Clothing Item Endpoints
 @app.post("/add_clothing_item/")
@@ -144,8 +148,9 @@ async def get_all_clothing_items(user=Depends(get_current_user)):
     return get_all_user_items_db(user)
 
 @app.post("/delete_clothing_item/")
-async def delete_clothing_item(data: DeleteItem):
-    return delete_clothing_item_db(data.item_id)
+async def delete_clothing_item(data: DeleteByID):
+    return delete_clothing_item_db(data.id)
+
 
 # User Endpoints
 @app.post("/update_profile/")
@@ -160,18 +165,19 @@ async def add_user_preference(pref: UserPreference):
         return {"error": error}
     return {"message": "User preference added", "data": data}
 
+
 # Outfit Endpoints
 @app.post("/add_saved_outfit/")
 async def add_saved_outfit(outfit: OutfitData):
     return add_saved_outfit_db(outfit)
 
-@app.post("/remove_saved_outfit/")
-async def remove_saved_outfit(user=Depends(get_current_user)):
-    return add_saved_outfit_db(user)
-
 @app.get("/get_saved_outfits/")
 async def get_saved_outfits(user=Depends(get_current_user)):
     return get_saved_outfits_db(user)
+
+@app.post("/remove_saved_outfit/")
+async def delete_saved_outfit(data: DeleteByID):
+    return delete_saved_outfit_db(data.id)
 
 @app.post("/edit_favourite_outfit/")
 async def edit_favourite_outfit():
