@@ -26,7 +26,8 @@ from user_details import (
 from outfits import (
     add_saved_outfit_db,
     get_saved_outfits_db,
-    delete_saved_outfit_db
+    delete_saved_outfit_db,
+    edit_favorite_outfit_db
 )
 from images import set_image
 from database import supabase
@@ -92,7 +93,7 @@ class OutfitData(BaseModel):
     user_id: str
     items: List[Dict]
     occasion: str
-    favourite: bool = False
+    favorite: bool = False
 
 
 # AI Chatbot Endpoint
@@ -175,10 +176,10 @@ async def add_saved_outfit(outfit: OutfitData):
 async def get_saved_outfits(user=Depends(get_current_user)):
     return get_saved_outfits_db(user)
 
-@app.post("/remove_saved_outfit/")
+@app.post("/delete_saved_outfit/")
 async def delete_saved_outfit(data: DeleteByID):
     return delete_saved_outfit_db(data.id)
 
-@app.post("/edit_favourite_outfit/")
-async def edit_favourite_outfit():
-    return
+@app.post("/edit_favorite_outfit/")
+async def edit_favorite_outfit(data: DeleteByID):
+    return edit_favorite_outfit_db(data.id)
