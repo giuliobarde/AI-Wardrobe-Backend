@@ -1,0 +1,174 @@
+{
+  "allowed_occasions": [
+    "white tie event", 
+    "black tie event", 
+    "job interview",
+    "dinner party", 
+    "work", 
+    "gym", 
+    "travel",
+    "brunch",
+    "beach",
+    "all occasions", 
+    "casual outing", 
+    "date night",
+    "party", 
+    "general formal occasion", 
+    "general informal occasion"
+  ],
+  "occasion_config": {
+    "white tie event": {
+      "items": [
+        "Tailcoat", "White Dress Shirt", "White Bow Tie", "White Waistcoat", 
+        "Tuxedo Pants", "Patent Leather Oxfords", "Formal Gloves"
+      ],
+      "rules": "Adhere to the strictest dress code. Only the most formal garments are appropriate.",
+      "strictness": "Extremely strict",
+      "description": "White tie is the most formal of dress codes, reserved for prestigious events such as galas and royal ceremonies."
+    },
+    "black tie event": {
+      "items": [
+        "Tuxedo Jacket", "Tuxedo Shirt", "Black Bow Tie", "Tuxedo Pants", 
+        "Patent Leather Oxfords", "Opera Pumps", "Cummerbund", "Dress Watch"
+      ],
+      "rules": "No casual or business items allowed. Must strictly follow the black tie aesthetic.",
+      "strictness": "Extremely strict",
+      "description": "Black tie is a formal evening dress code typically required for weddings, galas, or award ceremonies."
+    },
+    "job interview": {
+      "items": [
+        "Blazer", "Dress Shirt", "Tie", "Suit Pants", "Oxfords", 
+        "Derbies", "Loafers", "Suit Jacket", "Belt"
+      ],
+      "rules": "Convey professionalism. A matching suit is preferred. Avoid bright colors or patterns.",
+      "strictness": "Strict",
+      "description": "A clean, classic outfit to make a professional first impression during interviews."
+    },
+    "dinner party": {
+      "items": [
+        "Blazer", "Dress Shirt", "Chinos", "Loafers", "Dress Pants", 
+        "Polo Shirt", "Dress Boots", "Sweater", "Smart Casual Jacket"
+      ],
+      "rules": "Stylish and well-fitted, leaning toward semi-formal. Avoid casual sportswear.",
+      "strictness": "Moderate",
+      "description": "Ideal for social dinners or formal get-togethers where a refined appearance is expected."
+    },
+    "work": {
+      "items": [
+        "Dress Shirt", "Suit Jacket", "Blazer", "Chinos", "Dress Pants", 
+        "Loafers", "Oxfords", "Sweater", "Tie", "Cardigan"
+      ],
+      "rules": "Should reflect a business casual or business formal style depending on the job type.",
+      "strictness": "Moderate",
+      "description": "Office-appropriate outfits that maintain a clean, competent appearance."
+    },
+    "gym": {
+      "items": [
+        "Athletic T-Shirt", "Tank Top", "Sweatpants", "Joggers", 
+        "Athletic Shorts", "Sneakers", "Sports Bra", "Athletic Jacket", "Hoodie"
+      ],
+      "rules": "Comfort and breathability are key. Avoid denim or non-stretch fabrics.",
+      "strictness": "Low",
+      "description": "Apparel meant to maximize comfort and movement during workouts."
+    },
+    "travel": {
+      "items": [
+        "Hoodie", "Joggers", "T-Shirt", "Comfortable Sneakers", 
+        "Compression Socks", "Windbreaker", "Backpack"
+      ],
+      "rules": "Prioritize comfort and layerability. Consider different weather conditions.",
+      "strictness": "Low",
+      "description": "Comfort-forward and functional clothing for long trips or flights."
+    },
+    "brunch": {
+      "items": [
+        "Light Sweater", "Polo Shirt", "Casual Button-Down", 
+        "Chinos", "Flats", "Loafers", "Sneakers", "Crossbody Bag"
+      ],
+      "rules": "Should be trendy but relaxed. No formal or gym wear.",
+      "strictness": "Low",
+      "description": "A social but low-key occasion that allows for expressive, comfortable style."
+    },
+    "beach": {
+      "items": [
+        "Swim Shorts", "Tank Top", "Flip Flops", "Sunglasses", 
+        "Beach Shirt", "Sun Hat", "Beach Bag"
+      ],
+      "rules": "Functionality and sun protection are top priorities.",
+      "strictness": "Low",
+      "description": "Relaxed clothing meant for comfort, cooling, and beach-side lounging."
+    },
+    "all occasions": {
+      "items": [
+        "Polo Shirt", "Jeans", "Chinos", "Sneakers", "Light Jacket", 
+        "T-Shirt", "Cardigan", "Smart Casual Shoes"
+      ],
+      "rules": "Must be clean, well-fitted, and adaptable to various settings.",
+      "strictness": "Moderate",
+      "description": "A catch-all style that balances comfort, polish, and flexibility."
+    },
+    "casual outing": {
+      "items": [
+        "T-Shirt", "Casual Shirt", "Hoodie", "Jeans", "Sneakers", 
+        "Casual Jacket", "Sweatshirt", "Slip-ons", "Cargo Pants"
+      ],
+      "rules": "Relaxed and appropriate for public spaces; avoid formality.",
+      "strictness": "Low",
+      "description": "Clothing suitable for walks, errands, or hanging out with friends."
+    },
+    "date night": {
+      "items": [
+        "Button-Down Shirt", "Slim Fit Chinos", "Loafers", 
+        "Dark Jeans", "Blazer", "Leather Jacket", "Chelsea Boots"
+      ],
+      "rules": "Stylish and confident. Avoid overly formal or messy outfits.",
+      "strictness": "Moderate",
+      "description": "Outfits that reflect effort and confidence while staying comfortable."
+    },
+    "party": {
+      "items": [
+        "Graphic Tee", "Bomber Jacket", "Slim Jeans", "Chelsea Boots", 
+        "Sneakers", "Casual Shirt", "Ripped Jeans", "Chain", "Statement Jacket"
+      ],
+      "rules": "Fun, expressive, and trend-aware. Avoid overly formal items.",
+      "strictness": "Moderate",
+      "description": "Outgoing and fashionable clothing for social events or nightlife."
+    },
+    "general formal occasion": {
+      "items": [
+        "Suit Jacket", "Blazer", "Dress Shirt", "Dress Pants", 
+        "Leather Shoes", "Tie", "Pocket Square"
+      ],
+      "rules": "Polished and coordinated. Avoid casual pieces entirely.",
+      "strictness": "Strict",
+      "description": "Suitable for ceremonies, receptions, or formal business events."
+    },
+    "general informal occasion": {
+      "items": [
+        "T-Shirt", "Casual Shirt", "Jeans", "Sneakers", 
+        "Chinos", "Sweater", "Hoodie", "Light Jacket"
+      ],
+      "rules": "Comfort-first clothing without appearing sloppy.",
+      "strictness": "Low",
+      "description": "Everyday wear for informal gatherings or downtime."
+    }
+  },
+  "occasion_temperature": {
+    "white tie event": 0.1,
+    "black tie event": 0.1,
+    "very formal occasion": 0.2,
+    "job interview": 0.2,
+    "general formal occasion": 0.3,
+    "dinner party": 0.4,
+    "work": 0.4,
+    "all occasions": 0.5,
+    "date night": 0.6,
+    "party": 0.6,
+    "brunch": 0.6,
+    "travel": 0.6,
+    "general informal occasion": 0.7,
+    "casual outing": 0.7,
+    "gym": 0.7,
+    "beach": 0.8
+  }
+}

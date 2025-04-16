@@ -6,11 +6,11 @@ from typing import Dict, List, Set, Optional, Union, Any
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from openai import OpenAI
 import requests
-from functools import lru_cache
+from pathlib import Path
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -46,156 +46,50 @@ class OutfitResponse(BaseModel):
     outfit_items: List[OutfitItem]
     description: str
 
-# Config management class
+# Config management class with JSON file loading
 class AIConfig:
-    # Allowed occasions with extended configuration
-    ALLOWED_OCCASIONS = [
-        "white tie event", "black tie event", "very formal occasion", "job interview",
-        "dinner party", "work", "gym", "all occasions", "casual outing", "date night",
-        "party", "general formal occasion", "general informal occasion",
-    ]
+    _instance = None
+    _config = None
     
     @classmethod
-    @lru_cache(maxsize=1)
-    def get_occasion_config(cls) -> Dict[str, Dict[str, Any]]:
-        """Return occasion configuration with caching for performance"""
-        return {
-            "white tie event": {
-                "items": [
-                    "Tailcoat", "Dress Shirt", "Tuxedo Pants", "Dress Pants", "Patent Leather Oxfords"
-                ],
-                "rules": "Must adhere to the highest level of formality; only very formal items allowed.",
-                "strictness": "Extremely strict",
-                "description": "White tie is the most formal dress code, reserved for very special events."
-            },
-            "black tie event": {
-                "items": [
-                    "Tuxedo Jacket", "Tuxedo Vest", "Tuxedo Pants", "Tuxedo Shirt", "Dress Shirt",
-                    "Patent Leather Oxfords", "Leather Oxfords", "Patent Leather Derbies", 
-                    "Opera Pumps", "Ribbon Pumps"
-                ],
-                "rules": "Only if strictly required; must not use any lower-formality items.",
-                "strictness": "Extremely strict",
-                "description": "Black tie is an extremely high level of formality, and it should only be worn on special occasions, typically after 6pm."
-            },
-            "very formal occasion": {
-                "items": [
-                    "Tailcoat", "Tuxedo Jacket", "Dress Shirt", "Dress Pants", 
-                    "Patent Leather Oxfords", "Formal Dress Shoes"
-                ],
-                "rules": "Only high formal items allowed. Strict dress code; no casual items.",
-                "strictness": "Very strict",
-                "description": "A very formal occasion demands the utmost elegance and sophistication."
-            },
-            "job interview": {
-                "items": [
-                    "Dress Shirt", "Slacks", "Suit Pants", "Oxfords", "Derbies", "Blazer",
-                    "Suit Jacket", "Dress Shoes", "Tie", "Belt"
-                ],
-                "rules": "Maintain professionalism; ideally suggest a full suit.",
-                "strictness": "Strict",
-                "description": "This outfit should be professional, clean, and conservative."
-            },
-            "dinner party": {
-                "items": [
-                    "Blazer", "Dress Shirt", "Chinos", "Dress Pants", "Loafers", "Derbies",
-                    "Oxfords", "Dress Boots", "Sweater", "Polo Shirt"
-                ],
-                "rules": "Should be sophisticated but not overly formal; avoid overly casual items.",
-                "strictness": "Moderate",
-                "description": "An outfit for a dinner party should be stylish and sophisticated without being overly formal."
-            },
-            "work": {
-                "items": [
-                    "Dress Shirt", "Suit Pants", "Chinos", "Dress Shoes", "Blazer", "Sweater",
-                    "Loafers", "Derbies", "Oxfords", "Tie"
-                ],
-                "rules": "Professional business casual or formal, depending on the work environment; avoid overly casual items.",
-                "strictness": "Moderate",
-                "description": "Work attire should be business casual or formal, appropriate for a professional environment."
-            },
-            "gym": {
-                "items": [
-                    "T-Shirt", "Athletic Shorts", "Joggers", "Sweatpants", "Tank Top", "Sneakers",
-                    "Running Shoes", "Sports Socks", "Athletic Jacket", "Sweatshirt"
-                ],
-                "rules": "Must prioritize comfort, breathability, and mobility; avoid restrictive or formal items.",
-                "strictness": "Low",
-                "description": "Gym attire should be comfortable, breathable, and suitable for physical exercise."
-            },
-            "all occasions": {
-                "items": [
-                    "T-Shirt", "Jeans", "Chinos", "Sneakers", "Casual Shoes", "Sweater",
-                    "Jacket", "Polo Shirt"
-                ],
-                "rules": "Items should be versatile, comfortable, and acceptable in most casual to semi-formal settings.",
-                "strictness": "Moderate",
-                "description": "A versatile outfit that works in many settings."
-            },
-            "casual outing": {
-                "items": [
-                    "T-Shirt", "Jeans", "Shorts", "Sneakers", "Casual Shoes", "Sweatshirt",
-                    "Hoodie", "Casual Jacket"
-                ],
-                "rules": "Focus on comfort and relaxed style; no formal clothing required.",
-                "strictness": "Low",
-                "description": "For casual outings, choose relaxed and comfortable clothing."
-            },
-            "date night": {
-                "items": [
-                    "Casual Shirt", "Jeans", "Chinos", "Sneakers", "Loafers", "Blazer"
-                ],
-                "rules": "Should be stylish yet approachable.",
-                "strictness": "Moderate",
-                "description": "An outfit that is both attractive and comfortable for a date."
-            },
-            "party": {
-                "items": [
-                    "Casual Shirt", "Jeans", "Chinos", "Sneakers", "Loafers", "Casual Boots",
-                    "Blazer", "Bomber Jacket"
-                ],
-                "rules": "Fashionable and fun without being overly casual or inappropriate.",
-                "strictness": "Moderate",
-                "description": "Party outfits should be trendy and fun while still being appropriate."
-            },
-            "general formal occasion": {
-                "items": [
-                    "Suit Jacket", "Blazer", "Dress Shirt", "Dress Pants", "Tie",
-                    "Leather Dress Shoes", "Oxfords", "Derbies"
-                ],
-                "rules": "Must be neat, formal, and appropriate for high-level events; avoid casual wear.",
-                "strictness": "Strict",
-                "description": "A formal outfit suitable for most formal events."
-            },
-            "general informal occasion": {
-                "items": [
-                    "T-Shirt", "Casual Shirt", "Jeans", "Chinos", "Shorts", "Sneakers",
-                    "Casual Shoes", "Sweatshirt", "Hoodie"
-                ],
-                "rules": "Comfortable and casual; suitable for relaxed environments.",
-                "strictness": "Low",
-                "description": "An informal outfit that is comfortable and casual."
+    def get_instance(cls):
+        """Get singleton instance of AIConfig"""
+        if cls._instance is None:
+            cls._instance = cls()
+            cls._instance._load_config()
+        return cls._instance
+    
+    def _load_config(self):
+        """Load configuration from JSON file"""
+        # Path to the config file, relative to this script
+        config_path = Path(__file__).parent / 'config' / 'ai_config.json'
+        try:
+            with open(config_path, 'r') as f:
+                self._config = json.load(f)
+                logger.info(f"AI config loaded successfully from {config_path}")
+        except Exception as e:
+            logger.error(f"Failed to load config from {config_path}: {e}")
+            # Provide a minimal default config in case file loading fails
+            self._config = {
+                "allowed_occasions": ["all occasions"],
+                "occasion_config": {"all occasions": {"items": [], "rules": "", "strictness": "Low", "description": ""}},
+                "occasion_temperature": {"all occasions": 0.5}
             }
-        }
-
-    @classmethod
-    def get_occasion_temperature(cls, occasion: str) -> float:
-        """Return temperature setting based on occasion formality"""
-        temp_map = {
-            "white tie event": 0.1,
-            "black tie event": 0.1,
-            "very formal occasion": 0.2,
-            "job interview": 0.2,
-            "dinner party": 0.4,
-            "work": 0.4,
-            "gym": 0.7,
-            "all occasions": 0.5,
-            "casual outing": 0.7,
-            "date night": 0.6,
-            "party": 0.6,
-            "general formal occasion": 0.3,
-            "general informal occasion": 0.7,
-        }
+    
+    def get_allowed_occasions(self) -> List[str]:
+        """Get list of all allowed occasions"""
+        return self._config.get("allowed_occasions", ["all occasions"])
+    
+    def get_occasion_config(self, occasion: str = None) -> Dict[str, Any]:
+        """Get configuration for a specific occasion or all occasions"""
+        occasion_configs = self._config.get("occasion_config", {})
+        if occasion:
+            return occasion_configs.get(occasion, occasion_configs.get("all occasions", {}))
+        return occasion_configs
+    
+    def get_occasion_temperature(self, occasion: str) -> float:
+        """Get temperature setting for a specific occasion"""
+        temp_map = self._config.get("occasion_temperature", {})
         return temp_map.get(occasion, 0.5)
 
 
@@ -233,6 +127,8 @@ class LLMClient:
 
 # Create a singleton LLM client
 llm_client = LLMClient()
+# Initialize the config
+ai_config = AIConfig.get_instance()
 
 
 def determineOccasions(user_message: str) -> str:
@@ -246,9 +142,10 @@ def determineOccasions(user_message: str) -> str:
     Returns:
         A string representing the detected occasion
     """
+    allowed_occasions = ai_config.get_allowed_occasions()
     prompt = (
         f"Based on the following user message, determine the most appropriate occasion "
-        f"for generating an outfit. Choose from the following options: {', '.join(AIConfig.ALLOWED_OCCASIONS)}.\n\n"
+        f"for generating an outfit. Choose from the following options: {', '.join(allowed_occasions)}.\n\n"
         f"User message: \"{user_message}\".\n\n"
         f"Return only the chosen occasion exactly as one of the options."
     )
@@ -260,7 +157,7 @@ def determineOccasions(user_message: str) -> str:
         generated = llm_client.invoke(messages)
         
         # Check if the output (case-insensitive) is in the allowed occasions
-        for occ in AIConfig.ALLOWED_OCCASIONS:
+        for occ in allowed_occasions:
             if occ.lower() == generated.lower():
                 return occ
         
@@ -284,7 +181,7 @@ def fallback_determineOccasions(user_message: str) -> str:
     lower_msg = user_message.lower()
     
     # Exact matching with allowed phrases sorted by length (longest first)
-    for occ in sorted(AIConfig.get_occasion_config().keys(), key=len, reverse=True):
+    for occ in sorted(ai_config.get_occasion_config().keys(), key=len, reverse=True):
         pattern = r'\b' + re.escape(occ) + r'\b'
         if re.search(pattern, lower_msg):
             return occ
@@ -328,10 +225,10 @@ def generateOutfit(user_message: str, outside_temp: str, wardrobe_items: List[Di
     """
     # Determine target occasion and configuration
     target_occ = determineOccasions(user_message)
-    config = AIConfig.get_occasion_config().get(target_occ, AIConfig.get_occasion_config()["all occasions"])
+    config = ai_config.get_occasion_config(target_occ)
     
     # Set generation temperature based on occasion formality
-    generation_temp = AIConfig.get_occasion_temperature(target_occ)
+    generation_temp = ai_config.get_occasion_temperature(target_occ)
     llm_client.with_temperature(generation_temp)
     
     # Build rules text
@@ -479,6 +376,7 @@ def setOccasion(item: ClothingItem) -> ClothingItem:
     Returns:
         The updated clothing item with suitable occasions
     """
+    allowed_occasions = ai_config.get_allowed_occasions()
     prompt = (
         f"Given a clothing item with the following details:\n"
         f"Item type: {item.item_type}\n"
@@ -490,7 +388,7 @@ def setOccasion(item: ClothingItem) -> ClothingItem:
         f"Suitable for weather: {item.suitable_for_weather}\n"
         f"Sub-type: {item.sub_type}\n\n"
         "Which occasion(s) is this item most suitable for? Please choose one or more from the following list:\n"
-        f"{', '.join(AIConfig.ALLOWED_OCCASIONS)}\n\n"
+        f"{', '.join(allowed_occasions)}\n\n"
         "Return your answer as a JSON object with a single key \"occasions\" that maps to a list of occasion strings. "
         "Do not output any extra text."
     )
@@ -505,7 +403,7 @@ def setOccasion(item: ClothingItem) -> ClothingItem:
         
         parsed = json.loads(generated)
         occasions = parsed.get("occasions", [])
-        valid_occasions = [opt for opt in occasions if opt in AIConfig.ALLOWED_OCCASIONS]
+        valid_occasions = [opt for opt in occasions if opt in allowed_occasions]
         
         if not valid_occasions:
             valid_occasions = ["all occasions"]
@@ -533,8 +431,8 @@ def generateImage(item: ClothingItem) -> bytes:
         f"with a {item.pattern} pattern. The illustration must be simple, glossy, and vector-like, "
         f"centered on a pure white background. The clothing item should be well-lit with subtle shadows "
         f"to define its shape. Use clean lines and vibrant colors in a modern emoji aesthetic. "
-        f"IMPORTANT: Do not include any logos, text, watermarks, or brand identifiers of any kind. "
-        f"The image should only show the clothing item itself with absolutely no Apple logo or any other symbol."
+        f"IMPORTANT: Do not include any logos, text, watermarks, decorators, or brand identifiers of any kind. "
+        f"The image should only show the clothing item itself with absolutely no Apple logo or any other symbol. "
     )
     
     try:
