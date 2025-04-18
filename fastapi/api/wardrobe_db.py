@@ -61,6 +61,21 @@ def get_all_user_items_db(user):
     except Exception as e:
         print("❌ Retrieving All Items Error:", str(e))
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+    
+def check_item_in_outfits_db(item_id: str):
+    try:
+        # Query saved_outfits where the item_id exists in the items array
+        response = supabase.table("saved_outfits").select("*").contains("items", [item_id]).execute()
+        
+        item_error = getattr(response, "error", None)
+        if item_error:
+            raise HTTPException(status_code=400, detail=str(item_error))
+        
+        outfits = response.data if response.data else []
+        return {"data": outfits, "count": len(outfits)}
+    except Exception as e:
+        print("❌ Checking Item in Outfits Error:", str(e))
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
 def delete_clothing_item_db(item_id: str):
     try:
