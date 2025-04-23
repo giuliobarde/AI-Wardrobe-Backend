@@ -18,14 +18,15 @@ def update_user_profile_db(data, user):
     update_data = {
         "first_name": data.first_name,
         "last_name": data.last_name,
-        "username": data.username
+        "username": data.username,
+        "gender": data.gender
     }
 
     response = supabase.table("profiles").update(update_data).eq("id", user.id).execute()
 
     # Convert response to dict if necessary (if response is a pydantic model)
     try:
-        resp = response.dict()
+        resp = response.model_dump()
     except Exception:
         resp = response
 

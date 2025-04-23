@@ -62,6 +62,7 @@ def sign_up_db(user):
             "last_name": user.last_name,
             "username": user.username,
             "email": user.email,
+            "gender": user.gender,
         }
 
         # Insert additional profile data into the 'profiles' table.

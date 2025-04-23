@@ -1,5 +1,7 @@
 # 📌 Import necessary modules
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Security
+from fastapi import security
+from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel
 from database import supabase
 
