@@ -1,5 +1,5 @@
 from fastapi import HTTPException
-from database import supabase
+from .database import supabase
 
 def update_user_profile_db(data, user):
     """

@@ -1,5 +1,5 @@
 from fastapi import HTTPException
-from database import supabase
+from .database import supabase
 
 def add_saved_outfit_db(outfit):
     try:

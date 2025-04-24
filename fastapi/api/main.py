@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, field_validator
 import logging
 
 # Import your modules
-from auth import (
+from Database.auth import (
     sign_up_db,
     sign_in_db,
     get_session_db,
@@ -19,7 +19,7 @@ from openai_client import (
     setOccasion,
     ClothingItem as AIClothingItem
 )
-from wardrobe_db import (
+from Database.wardrobe import (
     add_clothing_item_db,
     delete_clothing_item_db,
     edit_favorite_item_db,
@@ -27,15 +27,15 @@ from wardrobe_db import (
     get_item_by_id_db,
     get_all_user_items_db
 )
-from user_details import update_user_profile_db
-from outfits import (
+from Database.user_details import update_user_profile_db
+from Database.outfits import (
     add_saved_outfit_db,
     get_saved_outfits_db,
     delete_saved_outfit_db,
     edit_favorite_outfit_db
 )
-from images import set_image
-from database import supabase
+from Database.images import set_image
+from Database.database import supabase
 
 # Logging
 logging.basicConfig(

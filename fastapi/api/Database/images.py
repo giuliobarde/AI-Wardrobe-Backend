@@ -3,7 +3,7 @@ import uuid
 from pydantic import BaseModel
 import requests
 from fastapi import HTTPException
-from database import supabase
+from .database import supabase
 from openai_client import generateImage
 
 class ClothingItem(BaseModel):
