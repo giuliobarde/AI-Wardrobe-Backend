@@ -62,6 +62,32 @@ def get_all_user_items_db(user):
         print("❌ Retrieving All Items Error:", str(e))
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
     
+def edit_favorite_item_db(item_id: str):
+    try:
+        # First, get the current favorite value
+        get_response = supabase.table("clothing_items").select("favorite").eq("id", item_id).execute()
+        item_error = getattr(get_response, "error", None)
+        if item_error:
+            raise HTTPException(status_code=400, detail=str(item_error))
+        
+        if not get_response.data or len(get_response.data) == 0:
+            raise HTTPException(status_code=404, detail="Item not found")
+        
+        # Get the current value and set the new value to the opposite
+        current_favorite = get_response.data[0]["favorite"]
+        new_favorite = not current_favorite
+        
+        # Update the favorite status to the opposite value
+        update_response = supabase.table("clothing_items").update({"favorite": new_favorite}).eq("id", item_id).execute()
+        item_error = getattr(update_response, "error", None)
+        if item_error:
+            raise HTTPException(status_code=400, detail=str(item_error))
+        
+        return {"message": "Favorite status updated successfully", "data": update_response.data}
+    except Exception as e:
+        print("❌ Editing Favorite Status Error:", str(e))
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+    
 def check_item_in_outfits_db(item_id: str):
     try:
         # Query saved_outfits where the item_id exists in the items array

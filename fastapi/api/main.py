@@ -22,6 +22,7 @@ from openai_client import (
 from wardrobe_db import (
     add_clothing_item_db,
     delete_clothing_item_db,
+    edit_favorite_item_db,
     get_user_items_db,
     get_item_by_id_db,
     get_all_user_items_db
@@ -117,8 +118,8 @@ class SigninUser(BaseModel):
     identifier: str
     password: str
 
-class DeleteByID(BaseModel):
-    id: str = Field(..., description="ID of the item to delete")
+class ItemID(BaseModel):
+    id: str = Field(..., description="ID of the item")
 
 class UpdateProfile(BaseModel):
     first_name: str
@@ -236,6 +237,15 @@ async def get_all_clothing_items(user=Depends(get_current_user)):
     except Exception as e:
         logger.error(f"Error in /clothing_items/all/: {e}", exc_info=True)
         raise HTTPException(500, "Failed to retrieve all clothing items")
+    
+@app.post("/edit_favorite_item/")
+async def edit_favorite_item(data: ItemID, user=Depends(get_current_user)):
+    try:
+        return edit_favorite_item_db(data.id)
+    except Exception as e:
+        logger.error(f"Error in /edit_favorite_item/: {e}", exc_info=True)
+        raise HTTPException(500, "Failed to update favorite status")
+
 
 # ——— New: Check if Item in Any Saved Outfits ———
 
@@ -271,7 +281,7 @@ async def check_item_in_outfits(
 
 @app.post("/delete_clothing_item/")
 async def delete_clothing_item(
-    data: DeleteByID,
+    data: ItemID,
     delete_outfits: bool = Query(False, description="Also delete saved outfits containing this item"),
     user=Depends(get_current_user)
 ):
@@ -352,7 +362,7 @@ async def get_saved_outfits(user=Depends(get_current_user)):
         raise HTTPException(500, "Failed to retrieve saved outfits")
 
 @app.post("/delete_saved_outfit/")
-async def delete_saved_outfit(data: DeleteByID, user=Depends(get_current_user)):
+async def delete_saved_outfit(data: ItemID, user=Depends(get_current_user)):
     try:
         return delete_saved_outfit_db(data.id)
     except Exception as e:
@@ -360,7 +370,7 @@ async def delete_saved_outfit(data: DeleteByID, user=Depends(get_current_user)):
         raise HTTPException(500, "Failed to delete saved outfit")
 
 @app.post("/edit_favorite_outfit/")
-async def edit_favorite_outfit(data: DeleteByID, user=Depends(get_current_user)):
+async def edit_favorite_outfit(data: ItemID, user=Depends(get_current_user)):
     try:
         return edit_favorite_outfit_db(data.id)
     except Exception as e:
