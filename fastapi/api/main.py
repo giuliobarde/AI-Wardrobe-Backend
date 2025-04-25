@@ -1,6 +1,6 @@
 import json
 from typing import Optional, List, Dict, Any
-from fastapi import FastAPI, Depends, HTTPException, Query, status
+from fastapi import FastAPI, Depends, HTTPException, Query, status, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
@@ -27,7 +27,11 @@ from Database.wardrobe import (
     get_item_by_id_db,
     get_all_user_items_db
 )
-from Database.user_details import update_user_profile_db
+# Import both profile update functions
+from Database.user_details import (
+    update_user_profile_db,
+    update_user_profile_image_db
+)
 from Database.outfits import (
     add_saved_outfit_db,
     get_saved_outfits_db,
@@ -98,7 +102,7 @@ class SignupUser(BaseModel):
     username: str
     email: str
     password: str
-    gender:str
+    gender: str
 
     @field_validator('password')
     @classmethod
@@ -331,6 +335,19 @@ async def update_user_profile(data: UpdateProfile, user=Depends(get_current_user
     except Exception as e:
         logger.error(f"Error in /update_profile/: {e}", exc_info=True)
         raise HTTPException(500, "Failed to update user profile")
+    
+@app.post("/update_profile_image/")
+async def update_profile_image(
+    profile_image: Optional[UploadFile] = File(None),
+    remove_image: bool = Form(False),
+    user=Depends(get_current_user)
+):
+    try:
+        updated = await update_user_profile_image_db(profile_image, remove_image, user)
+        return {"data": updated}
+    except Exception as e:
+        logger.error(f"Error in /update_profile_image/: {e}", exc_info=True)
+        raise HTTPException(500, "Failed to update profile image")
 
 @app.post("/add_user_preference/", status_code=status.HTTP_201_CREATED)
 async def add_user_preference(pref: UserPreference):
