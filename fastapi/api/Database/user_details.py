@@ -72,27 +72,57 @@ async def update_user_profile_image_db(profile_image, remove_image, user):
     
     update_data = {}
     
+    # Function to extract clean file path from URL
+    def extract_file_path(url):
+        if not url:
+            return None
+            
+        # Remove query parameters if any
+        clean_url = url.split('?')[0]
+        
+        # Extract the file path from the bucket path
+        if "/pics/" in clean_url:
+            # Get the specific filename after the /pics/ path
+            return f"pics/{clean_url.split('/pics/')[1]}"
+        elif "/user-profiles/" in clean_url:
+            # Try with bucket name
+            parts = clean_url.split("/user-profiles/")
+            if len(parts) > 1:
+                return parts[1]
+                
+        print(f"Warning: Could not parse image URL properly: {url}")
+        return None
+    
+    # Function to delete an image from storage
+    def delete_image_from_storage(url):
+        try:
+            file_path = extract_file_path(url)
+            if not file_path:
+                print(f"Could not extract file path from URL: {url}")
+                return False
+                
+            print(f"Attempting to delete file at path: {file_path}")
+            delete_response = supabase.storage.from_("user-profiles").remove([file_path])
+            print(f"Delete response: {delete_response}")
+            
+            # Check if the response indicates success
+            if delete_response and not (hasattr(delete_response, "error") and delete_response.error):
+                print(f"Successfully deleted image at path: {file_path}")
+                return True
+            else:
+                print(f"Warning: Error deleting image at path: {file_path}")
+                return False
+        except Exception as e:
+            print(f"Exception while deleting image: {str(e)}")
+            return False
+    
     # CASE 1: Remove the image
     if remove_image:
-        # If removing the image, set profile_image_url to null
         update_data["profile_image_url"] = None
         
         # Delete the old image from storage if it exists
         if current_image_url:
-            try:
-                # Extract the file path from the URL
-                # Assuming URL format: https://[supabase-url]/storage/v1/object/public/user-profiles/pics/filename
-                file_path = current_image_url.split("public/user-profiles/")[1]
-                
-                # Delete the file from storage
-                delete_response = supabase.storage.from_("user-profiles").remove([file_path])
-                
-                if hasattr(delete_response, "error") and delete_response.error:
-                    # Log the error but continue with the profile update
-                    print(f"Warning: Error deleting old image: {delete_response.error}")
-            except Exception as e:
-                # Log the error but continue with the profile update
-                print(f"Warning: Error during image deletion: {str(e)}")
+            delete_image_from_storage(current_image_url)
     
     # CASE 2 & 3: Add a new image or update existing image
     elif profile_image:
@@ -126,19 +156,7 @@ async def update_user_profile_image_db(profile_image, remove_image, user):
         
         # If updating an existing image, delete the old one after successfully uploading the new one
         if current_image_url:
-            try:
-                # Extract the file path from the URL
-                file_path = current_image_url.split("public/user-profiles/")[1]
-                
-                # Delete the file from storage
-                delete_response = supabase.storage.from_("user-profiles").remove([file_path])
-                
-                if hasattr(delete_response, "error") and delete_response.error:
-                    # Log the error but continue with the profile update
-                    print(f"Warning: Error deleting old image: {delete_response.error}")
-            except Exception as e:
-                # Log the error but continue with the profile update
-                print(f"Warning: Error during old image deletion: {str(e)}")
+            delete_image_from_storage(current_image_url)
 
     # Only proceed with the update if we have data to update
     if update_data:
