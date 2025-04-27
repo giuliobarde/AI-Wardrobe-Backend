@@ -109,7 +109,7 @@ def sign_in_db(user):
 
         # Query for additional profile details
         profile_response = supabase.table("profiles") \
-            .select("first_name, last_name, username, member_since, gender") \
+            .select("first_name, last_name, username, member_since, gender, profile_image_url") \
             .eq("id", user_id) \
             .execute()
 
@@ -132,6 +132,7 @@ def sign_in_db(user):
             "username": profile_data.get("username"),
             "member_since": profile_data.get("member_since"),
             "gender": profile_data.get("gender"),
+            "profile_image_url": profile_data.get("profile_image_url"),
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
