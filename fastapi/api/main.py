@@ -14,11 +14,9 @@ from Database.auth import (
     sign_out_db,
     get_current_user
 )
-from openai_client import (
-    generateOutfit,
-    setOccasion,
-    ClothingItem as AIClothingItem
-)
+from llm.outfit import generateOutfit
+from llm.item import setOccasion
+from llm.models import ClothingItem as AIClothingItem
 from Database.wardrobe import (
     add_clothing_item_db,
     delete_clothing_item_db,
@@ -27,7 +25,6 @@ from Database.wardrobe import (
     get_item_by_id_db,
     get_all_user_items_db
 )
-# Import both profile update functions
 from Database.user_details import (
     update_user_profile_db,
     update_user_profile_image_db
