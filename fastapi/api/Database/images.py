@@ -4,7 +4,7 @@ from pydantic import BaseModel
 import requests
 from fastapi import HTTPException
 from .database import supabase
-from openai_client import generateImage
+from llm.image import generateImage
 
 class ClothingItem(BaseModel):
     user_id: str
