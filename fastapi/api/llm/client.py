@@ -19,7 +19,7 @@ if not openai_api_key:
 class LLMClient:
     """Interface for language model interactions"""
     
-    def __init__(self, api_key: str = None, model_name: str = "gpt-3.5-turbo"):
+    def __init__(self, api_key: str = None, model_name: str = "gpt-4o-mini"):
         """Initialize LLM client with appropriate configuration"""
         self.api_key = api_key or openai_api_key
         self.model_name = model_name

@@ -1,15 +1,20 @@
 import json
 import logging
-from typing import Dict, List, Set, Optional, Tuple
+from typing import Dict, List, Set, Tuple
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from .client import llm_client
 from .config import ai_config
 from .occasion import determineOccasions
 
+
+
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+
 
 
 def filter_suitable_items(wardrobe_items: List[Dict], 
@@ -53,6 +58,8 @@ def filter_suitable_items(wardrobe_items: List[Dict],
     return filtered_items
 
 
+
+
 def categorize_wardrobe(wardrobe_items: List[Dict]) -> Dict[str, List[Dict]]:
     """
     Categorize wardrobe items by their type for easier outfit composition.
@@ -92,6 +99,8 @@ def categorize_wardrobe(wardrobe_items: List[Dict]) -> Dict[str, List[Dict]]:
             categories["suits"].append(item)
             
     return categories
+
+
 
 
 def check_outfit_balance(outfit_items: List[Dict]) -> Tuple[bool, str]:
@@ -135,6 +144,8 @@ def check_outfit_balance(outfit_items: List[Dict]) -> Tuple[bool, str]:
     return True, "Outfit is balanced"
 
 
+
+
 def check_style_coherence(outfit_items: List[Dict]) -> Tuple[bool, str]:
     """
     Check if the outfit has coherent style, colors, and patterns.
@@ -166,6 +177,8 @@ def check_style_coherence(outfit_items: List[Dict]) -> Tuple[bool, str]:
     return True, "Outfit style is coherent"
 
 
+
+
 def format_wardrobe_items(wardrobe_items: List[Dict]) -> Tuple[List[str], Set[str]]:
     """
     Format wardrobe items for prompt and return set of IDs.
@@ -195,6 +208,8 @@ def format_wardrobe_items(wardrobe_items: List[Dict]) -> Tuple[List[str], Set[st
         )
     
     return formatted_items, wardrobe_ids
+
+
 
 
 def build_prompt(user_message: str, 
@@ -255,18 +270,21 @@ You are a style assistant tasked with generating an outfit suggestion based on t
 
 6. {weather_guidance}
 
+7. IMPORTANT: Each item ID must be unique in the outfit. Do not include the same item ID more than once.
+8. IMPORTANT: Ensure that each item's type classification (tops, bottoms, shoes, etc.) matches its actual type. For example, don't classify a shirt as shoes.
+
 Examples for guidance:
 Example 1 (Wedding):
 Candidate: [White Dress Shirt, Navy Suit Pants, Black Dress Shoes, Navy Suit Jacket]
-Final Output: {{"occasion": "wedding", "outfit_items": [{{"id": "ex1_1", "sub_type": "White Dress Shirt", "color": "White"}}, {{"id": "ex1_2", "sub_type": "Navy Suit Pants", "color": "Navy"}}, {{"id": "ex1_3", "sub_type": "Black Dress Shoes", "color": "Black"}}, {{"id": "ex1_4", "sub_type": "Navy Suit Jacket", "color": "Navy"}}], "description": "An elegant and classic wedding ensemble."}}
+Final Output: {{"occasion": "wedding", "outfit_items": [{{"id": "ex1_1", "sub_type": "White Dress Shirt", "color": "White", "item_type": "top"}}, {{"id": "ex1_2", "sub_type": "Navy Suit Pants", "color": "Navy", "item_type": "bottom"}}, {{"id": "ex1_3", "sub_type": "Black Dress Shoes", "color": "Black", "item_type": "shoes"}}, {{"id": "ex1_4", "sub_type": "Navy Suit Jacket", "color": "Navy", "item_type": "outerwear"}}], "description": "An elegant and classic wedding ensemble."}}
 
 Example 2 (Dinner Party):
 Candidate: [Black Dress Shirt, Dark Jeans, Brown Loafers, Grey Blazer]
-Final Output: {{"occasion": "dinner party", "outfit_items": [{{"id": "ex3_1", "sub_type": "Black Dress Shirt", "color": "Black"}}, {{"id": "ex3_2", "sub_type": "Dark Jeans", "color": "Dark Blue"}}, {{"id": "ex3_3", "sub_type": "Brown Loafers", "color": "Brown"}}, {{"id": "ex3_4", "sub_type": "Grey Blazer", "color": "Grey"}}], "description": "A stylish and contemporary outfit perfect for a dinner party."}}
+Final Output: {{"occasion": "dinner party", "outfit_items": [{{"id": "ex3_1", "sub_type": "Black Dress Shirt", "color": "Black", "item_type": "top"}}, {{"id": "ex3_2", "sub_type": "Dark Jeans", "color": "Dark Blue", "item_type": "bottom"}}, {{"id": "ex3_3", "sub_type": "Brown Loafers", "color": "Brown", "item_type": "shoes"}}, {{"id": "ex3_4", "sub_type": "Grey Blazer", "color": "Grey", "item_type": "outerwear"}}], "description": "A stylish and contemporary outfit perfect for a dinner party."}}
 
 Example 3 (Hot Weather Casual):
 Candidate: [White T-Shirt, Khaki Shorts, Brown Sandals, Straw Hat]
-Final Output: {{"occasion": "casual outing", "outfit_items": [{{"id": "ex4_1", "sub_type": "White T-Shirt", "color": "White"}}, {{"id": "ex4_2", "sub_type": "Khaki Shorts", "color": "Beige"}}, {{"id": "ex4_3", "sub_type": "Brown Sandals", "color": "Brown"}}, {{"id": "ex4_4", "sub_type": "Straw Hat", "color": "Natural"}}], "description": "A comfortable and breezy outfit for hot weather."}}
+Final Output: {{"occasion": "casual outing", "outfit_items": [{{"id": "ex4_1", "sub_type": "White T-Shirt", "color": "White", "item_type": "top"}}, {{"id": "ex4_2", "sub_type": "Khaki Shorts", "color": "Beige", "item_type": "bottom"}}, {{"id": "ex4_3", "sub_type": "Brown Sandals", "color": "Brown", "item_type": "shoes"}}, {{"id": "ex4_4", "sub_type": "Straw Hat", "color": "Natural", "item_type": "accessory"}}], "description": "A comfortable and breezy outfit for hot weather."}}
 
 Now, with these rules:
 {rules_text}
@@ -292,9 +310,209 @@ Output only the final JSON object (with no extra text).
     return combined_prompt
 
 
+
+
+def check_duplicate_items(outfit_items: List[Dict]) -> Tuple[bool, str]:
+    """
+    Check if an outfit has duplicate item IDs or mismatched type classifications.
+    
+    Args:
+        outfit_items: List of outfit items
+        
+    Returns:
+        Tuple of (is_valid, reason)
+    """
+    # Check for duplicate IDs
+    item_ids = {}
+    for item in outfit_items:
+        item_id = item.get("id")
+        if item_id in item_ids:
+            return False, f"Duplicate item ID found: {item_id}"
+        item_ids[item_id] = item.get("item_type")
+    
+    return True, "No duplicate items found"
+
+
+def validate_outfit_composition(outfit_items: List[Dict]) -> Tuple[bool, str, Dict]:
+    """
+    Validate that an outfit meets basic composition requirements:
+    - Exactly one pair of shoes
+    - Either one bottom OR one dress (not both)
+    - At least one top (unless a dress is selected)
+    - Appropriate number of accessories and outerwear
+    
+    Args:
+        outfit_items: List of outfit items
+        
+    Returns:
+        Tuple of (is_valid, reason, item_counts)
+    """
+    # Count item types
+    item_counts = {
+        "top": 0,
+        "bottom": 0,
+        "shoes": 0,
+        "outerwear": 0,
+        "accessory": 0,
+        "dress": 0,
+        "suit": 0,
+        "other": 0
+    }
+    
+    for item in outfit_items:
+        item_type = item.get("item_type", "").lower()
+        if item_type in item_counts:
+            item_counts[item_type] += 1
+        else:
+            item_counts["other"] += 1
+    
+    # Check shoes requirement
+    if item_counts["shoes"] == 0:
+        return False, "Missing shoes. Every outfit must include exactly one pair of shoes.", item_counts
+    elif item_counts["shoes"] > 1:
+        return False, f"Too many shoes ({item_counts['shoes']}). Outfit should include exactly one pair of shoes.", item_counts
+    
+    # Check bottoms vs dress requirement
+    has_bottom = item_counts["bottom"] > 0
+    has_dress = item_counts["dress"] > 0
+    has_suit = item_counts["suit"] > 0
+    
+    if not (has_bottom or has_dress or has_suit):
+        return False, "Missing bottom or dress. Outfit must include either pants/skirt, a dress, or a suit.", item_counts
+    
+    if has_bottom and item_counts["bottom"] > 1:
+        return False, f"Too many bottom items ({item_counts['bottom']}). Outfit should include at most one bottom item.", item_counts
+    
+    # Check top requirement (unless dress or suit is present)
+    if not (has_dress or has_suit) and item_counts["top"] == 0:
+        return False, "Missing top. Outfit must include at least one top unless a dress or suit is selected.", item_counts
+    
+    if item_counts["top"] > 2:
+        return False, f"Too many tops ({item_counts['top']}). Outfit should include at most two tops.", item_counts
+    
+    # Outerwear check
+    if item_counts["outerwear"] > 2:
+        return False, f"Too many outerwear items ({item_counts['outerwear']}). Outfit should include at most two outerwear pieces.", item_counts
+    
+    # Accessory check
+    if item_counts["accessory"] > 3:
+        return False, f"Too many accessories ({item_counts['accessory']}). Outfit should include at most three accessories.", item_counts
+    
+    # Total items check
+    total_items = sum(item_counts.values())
+    if total_items < 3:
+        return False, f"Too few items ({total_items}). Outfit should include at least 3 items.", item_counts
+    if total_items > 7:
+        return False, f"Too many items ({total_items}). Outfit should include at most 7 items.", item_counts
+    
+    return True, "Outfit composition is valid.", item_counts
+
+
+
+
+def process_outfit_issues(outfit_json: Dict, 
+                         wardrobe_items: List[Dict], 
+                         wardrobe_ids: Set[str]) -> Dict:
+    """
+    Process outfit validation issues and attempt to fix them.
+    
+    Args:
+        outfit_json: The outfit JSON to validate and fix
+        wardrobe_items: Full list of wardrobe items
+        wardrobe_ids: Set of valid wardrobe IDs
+        
+    Returns:
+        Fixed outfit JSON if possible, otherwise original with warnings
+    """
+    # First validate the outfit composition
+    valid_composition, composition_reason, item_counts = validate_outfit_composition(outfit_json.get("outfit_items", []))
+    
+    # If composition is invalid, try to fix it
+    if not valid_composition:
+        # Create maps for faster lookups
+        item_type_map = {}
+        for item in wardrobe_items:
+            item_type = item.get("item_type", "").lower()
+            if item_type not in item_type_map:
+                item_type_map[item_type] = []
+            item_type_map[item_type].append(item)
+        
+        # Get current item IDs to avoid duplicates
+        current_ids = {item.get("id") for item in outfit_json.get("outfit_items", [])}
+        
+        # Check if we need to add shoes
+        if item_counts["shoes"] == 0:
+            if "shoes" in item_type_map and item_type_map["shoes"]:
+                # Find a suitable shoe to add
+                for shoe in item_type_map["shoes"]:
+                    if shoe.get("id") not in current_ids:
+                        outfit_json["outfit_items"].append({
+                            "id": shoe.get("id"),
+                            "sub_type": shoe.get("sub_type", "Shoes"),
+                            "color": shoe.get("color", "Unknown"),
+                            "item_type": "shoes"
+                        })
+                        outfit_json["warnings"] = outfit_json.get("warnings", []) + ["Added missing shoes automatically"]
+                        break
+        
+        # Check if we need to remove extra bottoms (keep only the first one)
+        if item_counts["bottom"] > 1:
+            bottom_items = [item for item in outfit_json["outfit_items"] if item.get("item_type") == "bottom"]
+            to_keep = bottom_items[0]
+            outfit_json["outfit_items"] = [
+                item for item in outfit_json["outfit_items"] 
+                if item.get("item_type") != "bottom" or item.get("id") == to_keep.get("id")
+            ]
+            outfit_json["warnings"] = outfit_json.get("warnings", []) + [
+                f"Removed extra bottom items, kept only {to_keep.get('sub_type', 'one bottom item')}"
+            ]
+        
+        # Check if we need to add a top when no dress/suit is present
+        if not (item_counts["dress"] > 0 or item_counts["suit"] > 0) and item_counts["top"] == 0:
+            if "top" in item_type_map and item_type_map["top"]:
+                # Find a suitable top to add
+                for top in item_type_map["top"]:
+                    if top.get("id") not in current_ids:
+                        outfit_json["outfit_items"].append({
+                            "id": top.get("id"),
+                            "sub_type": top.get("sub_type", "Top"),
+                            "color": top.get("color", "Unknown"),
+                            "item_type": "top"
+                        })
+                        outfit_json["warnings"] = outfit_json.get("warnings", []) + ["Added missing top automatically"]
+                        break
+        
+        # Check if we need to add a bottom when no dress/suit is present
+        if not (item_counts["dress"] > 0 or item_counts["suit"] > 0) and item_counts["bottom"] == 0:
+            if "bottom" in item_type_map and item_type_map["bottom"]:
+                # Find a suitable bottom to add
+                for bottom in item_type_map["bottom"]:
+                    if bottom.get("id") not in current_ids:
+                        outfit_json["outfit_items"].append({
+                            "id": bottom.get("id"),
+                            "sub_type": bottom.get("sub_type", "Bottom"),
+                            "color": bottom.get("color", "Unknown"),
+                            "item_type": "bottom"
+                        })
+                        outfit_json["warnings"] = outfit_json.get("warnings", []) + ["Added missing bottom automatically"]
+                        break
+    
+    # Update the composition validation after fixes
+    valid_composition, composition_reason, item_counts = validate_outfit_composition(outfit_json.get("outfit_items", []))
+    
+    # If still invalid, add warning
+    if not valid_composition:
+        outfit_json["warnings"] = outfit_json.get("warnings", []) + [f"Composition issue: {composition_reason}"]
+    
+    return outfit_json
+
+
+
+
 def validate_outfit(outfit_json: Dict, 
                    wardrobe_ids: Set[str], 
-                   target_occ: str) -> Dict:
+                   target_occ: str,
+                   wardrobe_items: List[Dict]) -> Dict:
     """
     Validate and enhance the outfit response.
     
@@ -302,18 +520,48 @@ def validate_outfit(outfit_json: Dict,
         outfit_json: Generated outfit JSON
         wardrobe_ids: Set of valid wardrobe IDs
         target_occ: Target occasion
+        wardrobe_items: Original wardrobe items for type verification
         
     Returns:
         Validated and enhanced outfit JSON
     """
-    # Validate candidate item IDs
+    # Create a mapping of item IDs to their correct types
+    wardrobe_id_to_type = {item.get("id"): item.get("item_type") for item in wardrobe_items if "id" in item}
+    wardrobe_id_to_item = {item.get("id"): item for item in wardrobe_items if "id" in item}
+    
+    # Validate candidate item IDs and ensure correct type
     valid_outfit_items = []
+    seen_ids = set()
+    
     for candidate_item in outfit_json.get("outfit_items", []):
-        if candidate_item.get("id") in wardrobe_ids:
+        item_id = candidate_item.get("id")
+        
+        # Skip duplicate items
+        if item_id in seen_ids:
+            logger.warning("Duplicate item with id %s found in outfit. Removing duplicate.", item_id)
+            continue
+        
+        # Verify item exists in wardrobe
+        if item_id in wardrobe_ids:
+            # Correct the item_type if it doesn't match
+            correct_type = wardrobe_id_to_type.get(item_id)
+            if correct_type and candidate_item.get("item_type") != correct_type:
+                logger.warning(
+                    "Item %s has incorrect type %s. Correcting to %s.", 
+                    item_id, candidate_item.get("item_type"), correct_type
+                )
+                candidate_item["item_type"] = correct_type
+                
+            # Ensure other item fields are correct too
+            original_item = wardrobe_id_to_item.get(item_id, {})
+            for field in ["sub_type", "color"]:
+                if field in original_item and (field not in candidate_item or not candidate_item.get(field)):
+                    candidate_item[field] = original_item.get(field)
+                    
             valid_outfit_items.append(candidate_item)
+            seen_ids.add(item_id)
         else:
-            logger.warning("Candidate item with id %s not found in wardrobe. Removing item.", 
-                          candidate_item.get("id"))
+            logger.warning("Candidate item with id %s not found in wardrobe. Removing item.", item_id)
     
     outfit_json["outfit_items"] = valid_outfit_items
     
@@ -344,7 +592,29 @@ def validate_outfit(outfit_json: Dict,
         if notes:
             outfit_json["styling_tips"] = " ".join(notes) + " " + outfit_json.get("styling_tips", "")
     
+    # Process outfit composition issues
+    outfit_json = process_outfit_issues(outfit_json, wardrobe_items, wardrobe_ids)
+    
+    # Run additional outfit checks
+    is_balanced, balance_reason = check_outfit_balance(outfit_json.get("outfit_items", []))
+    is_coherent, coherence_reason = check_style_coherence(outfit_json.get("outfit_items", []))
+    has_no_duplicates, duplicate_reason = check_duplicate_items(outfit_json.get("outfit_items", []))
+    
+    # Add warnings if necessary
+    if not is_balanced or not is_coherent or not has_no_duplicates:
+        warnings = outfit_json.get("warnings", [])
+        if not is_balanced:
+            warnings.append(f"Balance issue: {balance_reason}")
+        if not is_coherent:
+            warnings.append(f"Coherence issue: {coherence_reason}")
+        if not has_no_duplicates:
+            warnings.append(f"Duplicate issue: {duplicate_reason}")
+            
+        outfit_json["warnings"] = warnings
+    
     return outfit_json
+
+
 
 
 def generateOutfit(user_message: str, outside_temp: str, wardrobe_items: List[Dict]) -> Dict:
@@ -373,6 +643,29 @@ def generateOutfit(user_message: str, outside_temp: str, wardrobe_items: List[Di
             logger.info("Too few items after filtering (%d). Using original wardrobe.", len(filtered_items))
             filtered_items = wardrobe_items
         
+        # Ensure we have at least one item of each required type
+        item_types_available = {}
+        for item in filtered_items:
+            item_type = item.get("item_type", "").lower()
+            if item_type not in item_types_available:
+                item_types_available[item_type] = []
+            item_types_available[item_type].append(item)
+        
+        # Check for required types
+        required_types = ["top", "bottom", "shoes"]
+        missing_types = []
+        
+        for req_type in required_types:
+            if req_type not in item_types_available or not item_types_available[req_type]:
+                missing_types.append(req_type)
+                
+        if missing_types:
+            logger.warning("Missing required item types: %s. Adding from original wardrobe.", ", ".join(missing_types))
+            for item in wardrobe_items:
+                item_type = item.get("item_type", "").lower()
+                if item_type in missing_types and item not in filtered_items:
+                    filtered_items.append(item)
+        
         # Format wardrobe items
         formatted_items, wardrobe_ids = format_wardrobe_items(filtered_items)
         
@@ -380,7 +673,14 @@ def generateOutfit(user_message: str, outside_temp: str, wardrobe_items: List[Di
         generation_temp = ai_config.get_occasion_temperature(target_occ)
         llm_client.with_temperature(generation_temp)
         
-        # Build the prompt
+        # Categorize items by type for the prompt
+        categorized = categorize_wardrobe(filtered_items)
+        
+        # Add type counts to the prompt
+        type_counts = {item_type: len(items) for item_type, items in categorized.items() if items}
+        type_counts_str = ", ".join(f"{count} {item_type}" for item_type, count in type_counts.items())
+        
+        # Build the prompt with explicit guidance about required item types
         combined_prompt = build_prompt(
             user_message=user_message,
             outside_temp=outside_temp,
@@ -388,6 +688,15 @@ def generateOutfit(user_message: str, outside_temp: str, wardrobe_items: List[Di
             target_occ=target_occ,
             config=config
         )
+        
+        # Add explicit instructions about composition requirements
+        combined_prompt += f"\n\nIMPORTANT REQUIREMENTS:\n"
+        combined_prompt += f"1. Each item ID must be unique in the outfit. Do not include the same item ID more than once.\n"
+        combined_prompt += f"2. EXACTLY ONE pair of shoes is required (shoes, item_type='shoes').\n"
+        combined_prompt += f"3. EXACTLY ONE bottom item is required (pants, skirt, shorts, item_type='bottom') UNLESS a dress or suit is included.\n"
+        combined_prompt += f"4. At least one top item is required (shirt, blouse, t-shirt, item_type='top') UNLESS a dress or suit is included.\n"
+        combined_prompt += f"5. Available item types in wardrobe: {type_counts_str}.\n"
+        combined_prompt += f"6. Double-check item types before finalizing - each item must have its correct type classification.\n"
         
         # Generate outfit suggestion
         messages = [
@@ -409,18 +718,59 @@ def generateOutfit(user_message: str, outside_temp: str, wardrobe_items: List[Di
         
         outfit_json = json.loads(generated)
         
-        # Validate and enhance outfit
-        validated_outfit = validate_outfit(outfit_json, wardrobe_ids, target_occ)
+        # Validate and enhance outfit, passing in original wardrobe_items for type verification
+        validated_outfit = validate_outfit(outfit_json, wardrobe_ids, target_occ, wardrobe_items)
+        
+        # Double check composition requirements are met
+        valid_composition, composition_reason, item_counts = validate_outfit_composition(validated_outfit.get("outfit_items", []))
+        if not valid_composition:
+            logger.warning("Outfit composition invalid after validation: %s", composition_reason)
+            # Add warnings to the outfit
+            validated_outfit["warnings"] = validated_outfit.get("warnings", []) + [f"Composition issue: {composition_reason}"]
+            
+            # If critical requirements are missing, retry with a clearer prompt once
+            if "Missing shoes" in composition_reason or "Too many shoes" in composition_reason or "Missing bottom" in composition_reason:
+                logger.info("Critical composition requirements missing. Retrying with clearer prompt.")
+                combined_prompt += f"\n\nPREVIOUS ATTEMPT FAILED: {composition_reason}. Please strictly adhere to the outfit composition requirements."
+                
+                # Retry generation
+                messages = [
+                    SystemMessage(content=combined_prompt),
+                    HumanMessage(content="Please provide your final refined JSON output, ensuring exactly one pair of shoes and exactly one bottom item (unless a dress/suit is included).")
+                ]
+                
+                generated = llm_client.invoke(messages)
+                
+                # Parse and validate the retry
+                if "```json" in generated:
+                    generated = generated.split("```json")[1].split("```")[0].strip()
+                elif "```" in generated:
+                    generated = generated.split("```")[1].strip()
+                
+                try:
+                    retry_outfit_json = json.loads(generated)
+                    retry_validated_outfit = validate_outfit(retry_outfit_json, wardrobe_ids, target_occ, wardrobe_items)
+                    
+                    # Check if the retry fixed the issues
+                    retry_valid, retry_reason, _ = validate_outfit_composition(retry_validated_outfit.get("outfit_items", []))
+                    if retry_valid:
+                        logger.info("Retry successful. Using retry outfit.")
+                        validated_outfit = retry_validated_outfit
+                    else:
+                        logger.warning("Retry failed: %s. Using original outfit with warnings.", retry_reason)
+                except Exception as e:
+                    logger.error("Error in retry parsing: %s", e)
         
         return validated_outfit
         
     except json.JSONDecodeError as e:
         logger.error("JSON parsing error: %s in: %s", e, generated)
         outfit_json = {
-            "occasion": target_occ,
+            "occasion": target_occ if 'target_occ' in locals() else "unknown",
             "outfit_items": [],
             "description": "Failed to generate a valid outfit. Please try again.",
-            "styling_tips": "Try again with a more specific request."
+            "styling_tips": "Try again with a more specific request.",
+            "warnings": ["Failed to parse generated output as JSON."]
         }
     except Exception as e:
         logger.error("Error in generateOutfit: %s", e)
@@ -428,7 +778,8 @@ def generateOutfit(user_message: str, outside_temp: str, wardrobe_items: List[Di
             "occasion": target_occ if 'target_occ' in locals() else "unknown",
             "outfit_items": [],
             "description": "An error occurred while generating your outfit. Please try again.",
-            "styling_tips": "Try again with a more specific request."
+            "styling_tips": "Try again with a more specific request.",
+            "warnings": [f"Error: {str(e)}"]
         }
     
     return outfit_json
