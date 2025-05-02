@@ -1,4 +1,5 @@
 import logging
+import os
 import uuid
 from pydantic import BaseModel
 import requests
@@ -63,12 +64,11 @@ def add_new_item_image(file, item: ClothingItem):
     
     # Construct the public URL for the uploaded image.
     # Adjust this based on your Supabase URL and bucket configuration.
-    SUPABASE_URL = "https://qniouzdixmmtftnlkevs.supabase.co"
     bucket = "clothing-emojies"
     filename = upload_result.get("filename")
     if not filename:
         raise HTTPException(status_code=400, detail="Failed to obtain filename from upload result")
-    image_link = f"{SUPABASE_URL}/storage/v1/object/public/{bucket}/{filename}"
+    image_link = f"{os.environ.get("SUPABASE_URL")}/storage/v1/object/public/{bucket}/{filename}"
     
     # Prepare the record with the image attributes.
     record = {
