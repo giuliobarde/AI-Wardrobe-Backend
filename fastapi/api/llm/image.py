@@ -6,7 +6,7 @@ from typing import Optional, Dict, Any
 from dotenv import load_dotenv
 from openai import OpenAI, APIError, RateLimitError
 
-from .models import ClothingItem
+from api.models import ClothingItem
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

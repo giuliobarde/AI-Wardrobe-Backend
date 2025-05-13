@@ -4,8 +4,8 @@ import uuid
 from pydantic import BaseModel
 import requests
 from fastapi import HTTPException
-from .database import supabase
-from llm.image import generateImage
+from api.Database.database import supabase
+from api.llm.image import generateImage
 
 class ClothingItem(BaseModel):
     user_id: str

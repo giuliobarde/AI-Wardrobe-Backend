@@ -2,9 +2,9 @@ import json
 import logging
 from langchain_core.messages import SystemMessage
 
-from .models import ClothingItem
-from .client import llm_client
-from .config import ai_config
+from api.llm.models import ClothingItem
+from api.llm.client import llm_client
+from api.llm.config import ai_config
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

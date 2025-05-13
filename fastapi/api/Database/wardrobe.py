@@ -88,30 +88,82 @@ def edit_favorite_item_db(item_id: str):
         print("❌ Editing Favorite Status Error:", str(e))
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
     
-def check_item_in_outfits_db(item_id: str):
+def check_item_in_outfits_db(item_id: str, user_id: str):
     try:
-        # Query saved_outfits where the item_id exists in the items array
-        response = supabase.table("saved_outfits").select("*").contains("items", [item_id]).execute()
+        # Query saved_outfits for the specific user
+        resp = (
+            supabase
+            .table("saved_outfits")
+            .select("id, items")
+            .eq("user_id", user_id)
+            .execute()
+        )
         
-        item_error = getattr(response, "error", None)
-        if item_error:
-            raise HTTPException(status_code=400, detail=str(item_error))
+        err = getattr(resp, "error", None)
+        if err:
+            raise HTTPException(status_code=400, detail=f"Failed to load saved outfits: {err}")
         
-        outfits = response.data if response.data else []
-        return {"data": outfits, "count": len(outfits)}
+        outfits = resp.data or []
+        matches = [
+            o for o in outfits
+            if any(isinstance(i, dict) and i.get("id") == item_id for i in o.get("items", []))
+        ]
+        
+        return {"data": matches}
+    except HTTPException:
+        raise
     except Exception as e:
         print("❌ Checking Item in Outfits Error:", str(e))
-        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+        return {"data": []}
 
-def delete_clothing_item_db(item_id: str):
+def delete_clothing_item_db(item_id: str, delete_outfits: bool = False, user_id: str = None):
     try:
+        # If cascade delete is enabled, delete associated outfits first
+        if delete_outfits and user_id:
+            # Get outfits containing this item
+            outfit_resp = (
+                supabase
+                .table("saved_outfits")
+                .select("id, items")
+                .eq("user_id", user_id)
+                .execute()
+            )
+            
+            err = getattr(outfit_resp, "error", None)
+            if err:
+                raise HTTPException(status_code=400, detail=f"Failed to load saved outfits: {err}")
+            
+            outfits = outfit_resp.data or []
+            to_delete_ids = [
+                outfit["id"]
+                for outfit in outfits
+                if any(isinstance(i, dict) and i.get("id") == item_id for i in outfit.get("items", []))
+            ]
+            
+            # Delete associated outfits if any found
+            if to_delete_ids:
+                del_resp = (
+                    supabase
+                    .table("saved_outfits")
+                    .delete()
+                    .in_("id", to_delete_ids)
+                    .execute()
+                )
+                err2 = getattr(del_resp, "error", None)
+                if err2:
+                    raise HTTPException(status_code=400, detail=f"Failed to delete saved outfits: {err2}")
+        
+        # Delete the clothing item
         response = supabase.table("clothing_items").delete().eq("id", item_id).execute()
         try:
             if response.error:
                 raise HTTPException(status_code=400, detail=str(response.error))
         except AttributeError:
             pass
+        
         return {"data": response.data if hasattr(response, "data") and response.data else []}
+    except HTTPException:
+        raise
     except Exception as e:
         print("❌ Deleting Item Error:", str(e))
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")

@@ -3,9 +3,9 @@ import logging
 from typing import Dict, List, Set, Tuple
 from langchain_core.messages import SystemMessage, HumanMessage
 
-from .client import llm_client
-from .config import ai_config
-from .occasion import determineOccasions
+from api.llm.client import llm_client
+from api.llm.config import ai_config
+from api.llm.occasion import determineOccasions
 
 
 
