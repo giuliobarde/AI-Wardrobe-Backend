@@ -74,7 +74,8 @@ def generate_image(
         f"- Do not include any logos, text, watermarks, decorations, or brand identifiers of any kind. "
         f"- The image should only show the clothing item itself with absolutely no Apple logo or any other symbol. "
         f"- Do not add any human figures, mannequins, or additional objects. "
-        f"- Create a straight-on view of the item as if photographed for a product catalog. "
+        f"- Create a straight-on view of the item as if photographed for a product catalog, unless it is a piece of footware. "
+        f"- If it is a piece of footware crate the image at a slight angle. . "
         f"- The style should be highly simplified, appropriate for small emoji display. "
     )
     
