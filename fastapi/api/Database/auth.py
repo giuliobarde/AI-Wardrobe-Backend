@@ -2,6 +2,8 @@ from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException, Security, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from .database import supabase
+import logging
+from api.Weather.weather import get_current_weather
 
 
 # 📌 Active session storage
@@ -11,6 +13,9 @@ SESSION_TIMEOUT = timedelta(minutes=20)
 
 # 📌 Security (Token Authentication)
 security = HTTPBearer()
+
+# Logger for auth module
+logger = logging.getLogger(__name__)
 
 
 # 📌 Get Current User
@@ -81,7 +86,7 @@ def sign_up_db(user):
 
 
 # 📌 Sign In Function
-def sign_in_db(user):
+async def sign_in_db(user):
     try:
         # Determine if the identifier is an email or a username
         email_to_use = user.identifier
@@ -123,6 +128,23 @@ def sign_in_db(user):
             "last_active": datetime.now(timezone.utc)
         }
 
+        # Fetch weather data for New York (hardcoded)
+        try:
+            weather_data = get_current_weather()
+            if weather_data:
+                # Convert Pydantic model to dict
+                weather_info = weather_data.dict()
+                # Convert datetime to string for JSON serialization
+                weather_info["timestamp"] = weather_info["timestamp"].isoformat()
+
+            else:
+                weather_info = None
+
+        except Exception as e:
+            logger.error(f"Error fetching weather data during login: {e}")
+            weather_info = None
+
+
         return {
             "message": "Login successful",
             "user_id": user_id,
@@ -133,6 +155,7 @@ def sign_in_db(user):
             "member_since": profile_data.get("member_since"),
             "gender": profile_data.get("gender"),
             "profile_image_url": profile_data.get("profile_image_url"),
+            "weather": weather_info
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")

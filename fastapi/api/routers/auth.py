@@ -31,7 +31,7 @@ async def sign_up(user: SignupUser):
 @router.post("/sign-in/")
 async def sign_in(user: SigninUser):
     try:
-        return sign_in_db(user)
+        return await sign_in_db(user)
     except Exception as e:
         logger.error(f"Sign-in error: {e}", exc_info=True)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials")

@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 # Import routers
-from api.routers import auth, chat, clothing, profile, outfits
+from api.routers import auth, chat, clothing, profile, outfits, weather
 
 # Logging
 logging.basicConfig(
@@ -53,3 +53,6 @@ app.include_router(profile.router)
 
 # Outfit routes
 app.include_router(outfits.router)
+
+# Weather routes
+app.include_router(weather.router)
