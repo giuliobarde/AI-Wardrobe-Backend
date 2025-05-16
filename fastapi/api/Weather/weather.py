@@ -58,9 +58,9 @@ def get_current_weather() -> Optional[WeatherData]:
         
         # Format the response according to our model
         return WeatherData(
-            temperature=data["current"]["temp_c"],
+            temperature=data["current"]["temp_f"],
             description=data["current"]["condition"]["text"],
-            feels_like=data["current"]["feelslike_c"],
+            feels_like=data["current"]["feelslike_f"],
             humidity=data["current"]["humidity"],
             wind_speed=data["current"]["wind_kph"],
             location=data["location"]["name"],
