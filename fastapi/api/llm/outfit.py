@@ -18,14 +18,14 @@ logger = logging.getLogger(__name__)
 
 
 def filter_suitable_items(wardrobe_items: List[Dict], 
-                         outside_temp: str, 
+                         weather_data: Dict, 
                          occasion: str) -> List[Dict]:
     """
     Filter wardrobe items based on weather and occasion suitability.
     
     Args:
         wardrobe_items: List of wardrobe items
-        outside_temp: Temperature description
+        weather_data: Weather data dictionary containing temperature, description, etc.
         occasion: Target occasion
         
     Returns:
@@ -33,17 +33,39 @@ def filter_suitable_items(wardrobe_items: List[Dict],
     """
     filtered_items = []
     
-    # Parse temperature to determine weather condition
-    temp_lower = outside_temp.lower()
-    is_cold = any(word in temp_lower for word in ["cold", "freezing", "chilly", "cool"])
-    is_hot = any(word in temp_lower for word in ["hot", "warm", "humid", "balmy"])
+    # Parse temperature and weather conditions
+    temp = weather_data.get("temperature", 0)
+    description = weather_data.get("description", "").lower()
+    humidity = weather_data.get("humidity", 0)
+    wind_speed = weather_data.get("wind_speed", 0)
+    
+    # Determine weather conditions
+    is_cold = temp < 15 or "cold" in description or "chilly" in description
+    is_hot = temp > 25 or "hot" in description or "warm" in description
+    is_rainy = "rain" in description or "drizzle" in description
+    is_windy = wind_speed > 20 or "windy" in description
+    is_humid = humidity > 70 or "humid" in description
     
     for item in wardrobe_items:
         # Check weather suitability
         weather_suitable = item.get("suitable_for_weather", "").lower()
+        
+        # Skip items not suitable for current conditions
         if (is_cold and "cold" not in weather_suitable) or (is_hot and "hot" not in weather_suitable):
             if item.get("item_type") not in ["accessories", "shoes"]:  # Always include accessories and shoes
                 continue
+                
+        # Add rain protection if needed
+        if is_rainy and item.get("item_type") == "outerwear" and "waterproof" not in weather_suitable:
+            continue
+            
+        # Add wind protection if needed
+        if is_windy and item.get("item_type") in ["top", "dress"] and "windproof" not in weather_suitable:
+            continue
+            
+        # Consider humidity for material choices
+        if is_humid and item.get("material", "").lower() in ["wool", "synthetic"]:
+            continue
                 
         # Check occasion suitability
         occasion_suitable = item.get("suitable_for_occasion", "").lower()
@@ -213,7 +235,7 @@ def format_wardrobe_items(wardrobe_items: List[Dict]) -> Tuple[List[str], Set[st
 
 
 def build_prompt(user_message: str, 
-                outside_temp: str, 
+                weather_data: Dict, 
                 formatted_items: List[str], 
                 target_occ: str, 
                 config: Dict) -> str:
@@ -222,7 +244,7 @@ def build_prompt(user_message: str,
     
     Args:
         user_message: User's message
-        outside_temp: Outside temperature
+        weather_data: Weather data dictionary
         formatted_items: Formatted wardrobe items
         target_occ: Target occasion
         config: Occasion configuration
@@ -242,18 +264,36 @@ def build_prompt(user_message: str,
     
     wardrobe_text = "The user's wardrobe includes: " + " | ".join(formatted_items) + "."
     
-    weather_guidance = ""
-    if "cold" in outside_temp.lower() or "chilly" in outside_temp.lower():
-        weather_guidance = "Since it's cold, prioritize warmth with appropriate layers and outerwear."
-    elif "hot" in outside_temp.lower() or "warm" in outside_temp.lower():
-        weather_guidance = "Since it's hot, prioritize breathable materials and lighter clothing."
+    # Build comprehensive weather guidance
+    temp = weather_data.get("temperature", 0)
+    description = weather_data.get("description", "").lower()
+    humidity = weather_data.get("humidity", 0)
+    wind_speed = weather_data.get("wind_speed", 0)
+    
+    weather_guidance = []
+    
+    if temp < 15 or "cold" in description:
+        weather_guidance.append("Since it's cold, prioritize warmth with appropriate layers and outerwear.")
+    elif temp > 25 or "hot" in description:
+        weather_guidance.append("Since it's hot, prioritize breathable materials and lighter clothing.")
+        
+    if "rain" in description or "drizzle" in description:
+        weather_guidance.append("Include waterproof or water-resistant outerwear for rain protection.")
+        
+    if wind_speed > 20 or "windy" in description:
+        weather_guidance.append("Consider wind-resistant layers and secure accessories.")
+        
+    if humidity > 70 or "humid" in description:
+        weather_guidance.append("Choose moisture-wicking fabrics and avoid heavy materials.")
+    
+    weather_guidance_text = " ".join(weather_guidance) if weather_guidance else "Consider the current weather conditions when selecting items."
     
     # Combined prompt for outfit generation and refinement
     combined_prompt = f"""
 Step: Generate and Refine Outfit Suggestion.
 You are a style assistant tasked with generating an outfit suggestion based on the following details and guardrails.
 
-1. Use chain-of-thought reasoning to consider the user's message, outside temperature, and wardrobe.
+1. Use chain-of-thought reasoning to consider the user's message, weather conditions, and wardrobe.
 2. Ensure that only items from the provided wardrobe (with matching Item IDs) are selected.
 3. Do not include any items with 'tuxedo' or 'tailcoat' in their sub_type if the occasion is not a 'black tie event' or 'white tie event'.
 4. The outfit must consist of 3 to 6 items, including:
@@ -268,7 +308,7 @@ You are a style assistant tasked with generating an outfit suggestion based on t
    - Avoid mixing more than 2 patterns
    - Ensure the formality level is consistent across all items
 
-6. {weather_guidance}
+6. {weather_guidance_text}
 
 7. IMPORTANT: Each item ID must be unique in the outfit. Do not include the same item ID more than once.
 8. IMPORTANT: Ensure that each item's type classification (tops, bottoms, shoes, etc.) matches its actual type. For example, don't classify a shirt as shoes.
@@ -291,7 +331,7 @@ Now, with these rules:
 
 And the following details:
 Occasion: {user_message}
-Outside Temperature: {outside_temp}
+Weather Conditions: Temperature {temp}°C, {description}, Humidity {humidity}%, Wind Speed {wind_speed} km/h
 {wardrobe_text}
 
 Generate your chain-of-thought reasoning (if any) and then output the final refined JSON object in the format:
@@ -617,14 +657,14 @@ def validate_outfit(outfit_json: Dict,
 
 
 
-def generateOutfit(user_message: str, outside_temp: str, wardrobe_items: List[Dict]) -> Dict:
+def generateOutfit(user_message: str, weather_data: Dict, wardrobe_items: List[Dict]) -> Dict:
     """
-    Generates an outfit suggestion based on the user's message, outside temperature,
+    Generates an outfit suggestion based on the user's message, weather data,
     and wardrobe items.
     
     Args:
         user_message: The user's query or request
-        outside_temp: The outside temperature description
+        weather_data: Weather data dictionary containing temperature, description, etc.
         wardrobe_items: List of items from the user's wardrobe
         
     Returns:
@@ -636,7 +676,7 @@ def generateOutfit(user_message: str, outside_temp: str, wardrobe_items: List[Di
         config = ai_config.get_occasion_config(target_occ)
         
         # Filter wardrobe items based on suitability
-        filtered_items = filter_suitable_items(wardrobe_items, outside_temp, target_occ)
+        filtered_items = filter_suitable_items(wardrobe_items, weather_data, target_occ)
         
         # If too few items remain after filtering, use the original list
         if len(filtered_items) < 10:
@@ -683,7 +723,7 @@ def generateOutfit(user_message: str, outside_temp: str, wardrobe_items: List[Di
         # Build the prompt with explicit guidance about required item types
         combined_prompt = build_prompt(
             user_message=user_message,
-            outside_temp=outside_temp,
+            weather_data=weather_data,
             formatted_items=formatted_items,
             target_occ=target_occ,
             config=config
