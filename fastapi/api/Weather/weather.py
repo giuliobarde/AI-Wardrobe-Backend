@@ -48,6 +48,7 @@ class ForecastDay(BaseModel):
     humidity: int
     wind_speed: float
     hourly_forecast: List[HourlyForecast]
+    is_day: bool
 
 class ForecastData(BaseModel):
     """Model for forecast response"""
@@ -149,6 +150,9 @@ def get_weather_forecast() -> Optional[ForecastData]:
                     is_day=hour["is_day"] == 1
                 ))
             
+            # Calculate if it's day or night based on the first hour of the day
+            is_day = day["hour"][0]["is_day"] == 1
+            
             forecast_day = ForecastDay(
                 date=datetime.strptime(day["date"], "%Y-%m-%d"),
                 max_temp=day["day"]["maxtemp_f"],
@@ -157,7 +161,8 @@ def get_weather_forecast() -> Optional[ForecastData]:
                 chance_of_rain=day["day"]["daily_chance_of_rain"],
                 humidity=day["day"]["avghumidity"],
                 wind_speed=day["day"]["maxwind_kph"],
-                hourly_forecast=hourly_forecast
+                hourly_forecast=hourly_forecast,
+                is_day=is_day
             )
             logger.info(f"Processed forecast day: {forecast_day}")
             forecast_days.append(forecast_day)
