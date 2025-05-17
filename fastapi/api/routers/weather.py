@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 import logging
 from api.Database.auth import get_current_user
-from api.Weather.weather import get_current_weather, WeatherData
+from api.Weather.weather import get_current_weather, get_weather_forecast, WeatherData, ForecastData
 
 logger = logging.getLogger(__name__)
 
@@ -26,27 +26,19 @@ async def current_weather(user=Depends(get_current_user)):
     
     return weather_data
 
-# This endpoint is prepared for future implementation but commented out for now
-# @router.get("/location/{location}", response_model=WeatherData)
-# async def location_weather(
-#     location: str,
-#     user=Depends(get_current_user)
-# ):
-#     """
-#     Get weather data for a specific location.
-#     This can be a city name, postal code, or latitude,longitude.
-#     
-#     Example: /weather/location/London
-#              /weather/location/10001
-#              /weather/location/40.7128,-74.006
-#     """
-#     weather_data = get_weather_for_location(location)
-#     
-#     if not weather_data:
-#         logger.error(f"Failed to get weather data for location: {location}")
-#         raise HTTPException(
-#             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, 
-#             detail="Weather service unavailable or location not found"
-#         )
-#     
-#     return weather_data
+@router.get("/forecast", response_model=ForecastData)
+async def weather_forecast(user=Depends(get_current_user)):
+    """
+    Get 3-day weather forecast for New York (hardcoded).
+    Returns forecast data including temperature ranges, conditions, and precipitation chances.
+    """
+    forecast_data = get_weather_forecast()
+    
+    if not forecast_data:
+        logger.error("Failed to get weather forecast data")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, 
+            detail="Weather forecast service unavailable"
+        )
+    
+    return forecast_data
