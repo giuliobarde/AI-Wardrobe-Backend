@@ -26,6 +26,7 @@ class WeatherData(BaseModel):
     wind_speed: float
     location: str
     timestamp: datetime
+    visibility: str
 
 class HourlyForecast(BaseModel):
     """Model for hourly forecast data"""
@@ -92,7 +93,8 @@ def get_current_weather() -> Optional[WeatherData]:
             humidity=data["current"]["humidity"],
             wind_speed=data["current"]["wind_kph"],
             location=data["location"]["name"],
-            timestamp=timestamp
+            timestamp=timestamp,
+            visibility=f"{data['current']['vis_miles']} miles"
         )
         
     except requests.RequestException as e:

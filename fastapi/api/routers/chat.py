@@ -61,7 +61,12 @@ async def chat(request: Request, user=Depends(get_current_user)):
             "humidity": chat_request.weather_data.humidity,
             "wind_speed": chat_request.weather_data.wind_speed,
             "location": chat_request.weather_data.location,
-            "timestamp": chat_request.weather_data.timestamp
+            "timestamp": chat_request.weather_data.timestamp,
+            "forecast": {
+                "high": chat_request.weather_data.forecast.high if hasattr(chat_request.weather_data, 'forecast') else None,
+                "low": chat_request.weather_data.forecast.low if hasattr(chat_request.weather_data, 'forecast') else None,
+                "description": chat_request.weather_data.forecast.description if hasattr(chat_request.weather_data, 'forecast') else None
+            }
         }
         
         logger.info(f"Processed weather data: {weather_data}")

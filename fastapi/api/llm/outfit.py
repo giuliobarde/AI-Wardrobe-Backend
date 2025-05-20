@@ -35,16 +35,23 @@ def filter_suitable_items(wardrobe_items: List[Dict],
     
     # Parse temperature and weather conditions
     temp = weather_data.get("temperature", 0)
+    forecast = weather_data.get("forecast", {})
+    forecast_high = forecast.get("high") if isinstance(forecast.get("high"), (int, float)) else temp
+    forecast_low = forecast.get("low") if isinstance(forecast.get("low"), (int, float)) else temp
     description = weather_data.get("description", "").lower()
     humidity = weather_data.get("humidity", 0)
     wind_speed = weather_data.get("wind_speed", 0)
     
-    # Determine weather conditions
-    is_cold = temp < 15 or "cold" in description or "chilly" in description
-    is_hot = temp > 25 or "hot" in description or "warm" in description
+    # Determine weather conditions based on both current and forecast
+    is_cold = (temp < 15 or forecast_low < 15) or "cold" in description or "chilly" in description
+    is_hot = (temp > 25 or forecast_high > 25) or "hot" in description or "warm" in description
     is_rainy = "rain" in description or "drizzle" in description
     is_windy = wind_speed > 20 or "windy" in description
     is_humid = humidity > 70 or "humid" in description
+    
+    # Calculate temperature range for the day
+    temp_range = forecast_high - forecast_low if isinstance(forecast_high, (int, float)) and isinstance(forecast_low, (int, float)) else 0
+    has_large_temp_range = temp_range > 10  # More than 10 degrees difference
     
     for item in wardrobe_items:
         # Check weather suitability
@@ -66,6 +73,11 @@ def filter_suitable_items(wardrobe_items: List[Dict],
         # Consider humidity for material choices
         if is_humid and item.get("material", "").lower() in ["wool", "synthetic"]:
             continue
+            
+        # For large temperature ranges, prioritize layering items
+        if has_large_temp_range:
+            if item.get("item_type") in ["outerwear", "top"] and "layering" not in weather_suitable:
+                continue
                 
         # Check occasion suitability
         occasion_suitable = item.get("suitable_for_occasion", "").lower()
@@ -266,17 +278,37 @@ def build_prompt(user_message: str,
     
     # Build comprehensive weather guidance
     temp = weather_data.get("temperature", 0)
+    forecast = weather_data.get("forecast", {})
+    forecast_high = forecast.get("high", temp)
+    forecast_low = forecast.get("low", temp)
     description = weather_data.get("description", "").lower()
     humidity = weather_data.get("humidity", 0)
     wind_speed = weather_data.get("wind_speed", 0)
     
     weather_guidance = []
     
+    # Temperature range guidance
+    temp_range = forecast_high - forecast_low if forecast_high and forecast_low else 0
+    if temp_range > 10:
+        weather_guidance.append(
+            f"Temperature will vary significantly today ({temp_range}°C range from {forecast_low}°C to {forecast_high}°C). "
+            "Prioritize layering pieces that can be easily added or removed."
+        )
+    
+    # Current temperature guidance
     if temp < 15 or "cold" in description:
-        weather_guidance.append("Since it's cold, prioritize warmth with appropriate layers and outerwear.")
+        weather_guidance.append("Current conditions are cold. Prioritize warmth with appropriate layers and outerwear.")
     elif temp > 25 or "hot" in description:
-        weather_guidance.append("Since it's hot, prioritize breathable materials and lighter clothing.")
-        
+        weather_guidance.append("Current conditions are hot. Prioritize breathable materials and lighter clothing.")
+    
+    # Forecast-specific guidance
+    if forecast_high and forecast_low:
+        if forecast_high > 25:
+            weather_guidance.append("It will get quite warm later. Include items that can be easily removed.")
+        if forecast_low < 15:
+            weather_guidance.append("It will get cold later. Include items that can be easily added for warmth.")
+    
+    # Additional weather conditions
     if "rain" in description or "drizzle" in description:
         weather_guidance.append("Include waterproof or water-resistant outerwear for rain protection.")
         
@@ -331,7 +363,8 @@ Now, with these rules:
 
 And the following details:
 Occasion: {user_message}
-Weather Conditions: Temperature {temp}°C, {description}, Humidity {humidity}%, Wind Speed {wind_speed} km/h
+Weather Conditions: Current Temperature {temp}°C, {description}, Humidity {humidity}%, Wind Speed {wind_speed} km/h
+Forecast: High {forecast_high}°C, Low {forecast_low}°C
 {wardrobe_text}
 
 Generate your chain-of-thought reasoning (if any) and then output the final refined JSON object in the format:
