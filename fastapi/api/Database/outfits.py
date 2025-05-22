@@ -21,11 +21,20 @@ def add_saved_outfit_db(outfit):
 
 def get_saved_outfits_db(user):
     try:
+        if not user or not user.id:
+            raise HTTPException(status_code=401, detail="User not authenticated")
+            
         response = supabase.table("saved_outfits").select("*").eq("user_id", user.id).execute()
         item_error = getattr(response, "error", None)
         if item_error:
             raise HTTPException(status_code=400, detail=str(item_error))
-        return {"data": response.data if response.data else []}
+            
+        if not response.data:
+            return {"data": []}
+            
+        return {"data": response.data}
+    except HTTPException as he:
+        raise he
     except Exception as e:
         print("❌ Retrieving Outfit Error:", str(e))
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")

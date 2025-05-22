@@ -20,6 +20,7 @@ from api.Database.images import set_image
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
+    prefix="/wardrobe",
     tags=["clothing"]
 )
 

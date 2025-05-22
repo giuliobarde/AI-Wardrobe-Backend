@@ -13,6 +13,7 @@ from api.Database.outfits import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
+    prefix="/outfit",
     tags=["outfits"]
 )
 
