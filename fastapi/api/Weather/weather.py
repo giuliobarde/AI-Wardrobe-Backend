@@ -10,7 +10,6 @@ from pydantic import BaseModel
 load_dotenv()
 
 # Constants
-CITY = "New York"  # Hardcoded city
 BASE_URL = os.getenv("WEATHER_BASE_URL", "http://api.weatherapi.com/v1")
 API_KEY = os.getenv("WEATHER_API_KEY")
 
@@ -56,9 +55,9 @@ class ForecastData(BaseModel):
     location: str
     forecast_days: List[ForecastDay]
 
-def get_current_weather() -> Optional[WeatherData]:
+def get_current_weather(lat: float, lon: float) -> Optional[WeatherData]:
     """
-    Get current weather for New York (hardcoded).
+    Get current weather for the given coordinates.
     Returns formatted weather data.
     """
     try:
@@ -70,7 +69,7 @@ def get_current_weather() -> Optional[WeatherData]:
         url = BASE_URL
         params = {
             "key": API_KEY,
-            "q": CITY,
+            "q": f"{lat},{lon}",
             "aqi": "no"  # Don't include air quality data
         }
         
@@ -98,18 +97,18 @@ def get_current_weather() -> Optional[WeatherData]:
         )
         
     except requests.RequestException as e:
-        logger.error(f"Error fetching weather for {CITY}: {e}")
+        logger.error(f"Error fetching weather for coordinates {lat},{lon}: {e}")
         return None
     except KeyError as e:
         logger.error(f"Invalid response format from weather API: {e}")
         return None
     except Exception as e:
-        logger.error(f"Unexpected error getting weather for {CITY}: {e}")
+        logger.error(f"Unexpected error getting weather for coordinates {lat},{lon}: {e}")
         return None
 
-def get_weather_forecast() -> Optional[ForecastData]:
+def get_weather_forecast(lat: float, lon: float) -> Optional[ForecastData]:
     """
-    Get 3-day weather forecast for New York (hardcoded).
+    Get 3-day weather forecast for the given coordinates.
     Returns formatted forecast data.
     """
     try:
@@ -121,7 +120,7 @@ def get_weather_forecast() -> Optional[ForecastData]:
         url = f"{BASE_URL}/forecast.json"
         params = {
             "key": API_KEY,
-            "q": CITY,
+            "q": f"{lat},{lon}",
             "days": 3,  # Get 3 days forecast
             "aqi": "no",  # Don't include air quality data
             "alerts": "no"  # Don't include weather alerts
@@ -177,11 +176,11 @@ def get_weather_forecast() -> Optional[ForecastData]:
         return forecast_data
         
     except requests.RequestException as e:
-        logger.error(f"Error fetching weather forecast for {CITY}: {e}")
+        logger.error(f"Error fetching weather forecast for coordinates {lat},{lon}: {e}")
         return None
     except KeyError as e:
         logger.error(f"Invalid response format from weather API: {e}")
         return None
     except Exception as e:
-        logger.error(f"Unexpected error getting weather forecast for {CITY}: {e}")
+        logger.error(f"Unexpected error getting weather forecast for coordinates {lat},{lon}: {e}")
         return None
