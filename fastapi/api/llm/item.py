@@ -1,8 +1,9 @@
 import json
 import logging
 from langchain_core.messages import SystemMessage
+from typing import List
 
-from api.llm.models import ClothingItem
+from api.models import ClothingItem
 from api.llm.client import llm_client
 from api.llm.config import ai_config
 

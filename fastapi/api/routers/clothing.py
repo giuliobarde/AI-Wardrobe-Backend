@@ -5,7 +5,6 @@ from typing import Optional
 from api.models import ClothingItem, ItemID
 from api.Database.auth import get_current_user
 from api.llm.item import setOccasion
-from api.llm.models import ClothingItem as AIClothingItem
 from api.Database.wardrobe import (
     add_clothing_item_db,
     delete_clothing_item_db,
@@ -27,9 +26,7 @@ router = APIRouter(
 @router.post("/add_clothing_item/", status_code=status.HTTP_201_CREATED)
 async def add_clothing_item(item: ClothingItem, user=Depends(get_current_user)):
     try:
-        ai_item = AIClothingItem(**item.model_dump())
-        setOccasion(ai_item)
-        item.suitable_for_occasion = ai_item.suitable_for_occasion
+        setOccasion(item)
         set_image(item)
         item.user_id = user.id
         return add_clothing_item_db(item)
