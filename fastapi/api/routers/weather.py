@@ -47,6 +47,5 @@ async def weather_forecast(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, 
             detail="Weather forecast service unavailable"
-        )
-    
+        )    
     return forecast_data

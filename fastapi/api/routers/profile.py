@@ -16,6 +16,26 @@ router = APIRouter(
     tags=["user_profile"]
 )
 
+@router.get("/profile/")
+async def get_user_profile(user=Depends(get_current_user)):
+    try:
+        profile_response = supabase.table("profiles") \
+            .select("id, first_name, last_name, username, member_since, gender, profile_image_url, email") \
+            .eq("id", user.id) \
+            .execute()
+            
+        if not profile_response.data or len(profile_response.data) == 0:
+            raise HTTPException(status_code=404, detail="Profile not found")
+        
+        profile_data = profile_response.data[0]
+        # Add the user_id to the response
+        profile_data["user_id"] = user.id
+        
+        return profile_data
+    except Exception as e:
+        logger.error(f"Error in /profile/: {e}", exc_info=True)
+        raise HTTPException(500, "Failed to retrieve user profile")
+
 @router.post("/update_profile/")
 async def update_user_profile(data: UpdateProfile, user=Depends(get_current_user)):
     try:
