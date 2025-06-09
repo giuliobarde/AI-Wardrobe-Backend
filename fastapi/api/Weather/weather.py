@@ -126,12 +126,12 @@ def get_weather_forecast(lat: float, lon: float) -> Optional[ForecastData]:
             "alerts": "no"  # Don't include weather alerts
         }
         
-        logger.info(f"Fetching forecast from URL: {url}")
+        # logger.info(f"Fetching forecast from URL: {url}") # API request logging
         response = requests.get(url, params=params)
         response.raise_for_status()
         
         data = response.json()
-        logger.info(f"Raw forecast API response: {data}")
+        # logger.info(f"Raw forecast API response: {data}") # API response logging
         
         forecast_days = []
         
@@ -165,14 +165,14 @@ def get_weather_forecast(lat: float, lon: float) -> Optional[ForecastData]:
                 hourly_forecast=hourly_forecast,
                 is_day=is_day
             )
-            logger.info(f"Processed forecast day: {forecast_day}")
+            # logger.info(f"Processed forecast day: {forecast_day}") # API response logging
             forecast_days.append(forecast_day)
         
         forecast_data = ForecastData(
             location=data["location"]["name"],
             forecast_days=forecast_days
         )
-        logger.info(f"Final forecast data: {forecast_data}")
+        # logger.info(f"Final forecast data: {forecast_data}") # API response logging  
         return forecast_data
         
     except requests.RequestException as e:
