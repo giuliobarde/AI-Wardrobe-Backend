@@ -1,7 +1,9 @@
 import json
 import logging
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Set, Tuple, Optional
 from langchain_core.messages import SystemMessage, HumanMessage
+from dataclasses import dataclass
+from enum import Enum
 
 from api.llm.client import llm_client
 from api.llm.config import ai_config
@@ -17,9 +19,174 @@ logger = logging.getLogger(__name__)
 
 
 
-def filter_suitable_items(wardrobe_items: List[Dict], 
+class ItemType(Enum):
+    TOP = "top"
+    BOTTOM = "bottom"
+    SHOES = "shoes"
+    OUTERWEAR = "outerwear"
+    ACCESSORY = "accessory"
+    DRESS = "dress"
+    SUIT = "suit"
+
+    @classmethod
+    def from_string(cls, value: str) -> 'ItemType':
+        """Safely convert a string to ItemType, handling common variations."""
+        if not value:
+            raise ValueError("Item type cannot be empty")
+            
+        value = value.lower().strip()
+        # Handle common variations and typos
+        type_mapping = {
+            'tops': cls.TOP,
+            'top': cls.TOP,
+            'bottoms': cls.BOTTOM,
+            'bottom': cls.BOTTOM,
+            'shoe': cls.SHOES,
+            'shoes': cls.SHOES,
+            'footwear': cls.SHOES,
+            'outer': cls.OUTERWEAR,
+            'outerware': cls.OUTERWEAR,  # Common typo
+            'outerwear': cls.OUTERWEAR,
+            'jacket': cls.OUTERWEAR,
+            'coat': cls.OUTERWEAR,
+            'accessories': cls.ACCESSORY,
+            'accessory': cls.ACCESSORY,
+            'dresses': cls.DRESS,
+            'dress': cls.DRESS,
+            'suits': cls.SUIT,
+            'suit': cls.SUIT
+        }
+        
+        if value in type_mapping:
+            return type_mapping[value]
+            
+        # Try to find a close match
+        for valid_type in cls:
+            if valid_type.value in value or value in valid_type.value:
+                return valid_type
+                
+        raise ValueError(f"Invalid item type: {value}")
+
+class FormalityLevel(Enum):
+    VERY_LOW = "very low"
+    LOW = "low"
+    SOMEWHAT_LOW = "somewhat low"
+    MEDIUM = "medium"
+    SOMEWHAT_HIGH = "somewhat high"
+    HIGH = "high"
+    VERY_HIGH = "very high"
+    BUSINESS_CASUAL = "business casual"
+    SMART_CASUAL = "smart casual"
+    CASUAL = "casual"
+    BUSINESS_FORMAL = "business formal"
+    COCKTAIL = "cocktail"
+    BLACK_TIE = "black tie"
+    WHITE_TIE = "white tie"
+
+@dataclass
+class WardrobeItem:
+    id: str
+    item_type: ItemType
+    material: str
+    color: str
+    formality: FormalityLevel
+    pattern: str
+    fit: str
+    suitable_for_weather: List[str]
+    suitable_for_occasion: List[str]
+    sub_type: str
+    image_link: Optional[str] = None
+    favorite: bool = False
+
+    @classmethod
+    def from_dict(cls, data: Dict) -> 'WardrobeItem':
+        """Create a WardrobeItem from a dictionary with error handling."""
+        try:
+            # Safely convert item_type
+            item_type = ItemType.from_string(data.get('item_type', ''))
+            
+            # Safely convert formality with fallback
+            try:
+                formality = FormalityLevel(data.get('formality', 'medium').lower())
+            except ValueError:
+                formality = FormalityLevel.MEDIUM
+                logger.warning(f"Invalid formality level for item {data.get('id')}, defaulting to MEDIUM")
+            
+            # Safely convert weather and occasion lists
+            weather = data.get('suitable_for_weather', '')
+            weather_list = weather.split(',') if isinstance(weather, str) else weather or []
+            
+            occasion = data.get('suitable_for_occasion', '')
+            occasion_list = occasion.split(',') if isinstance(occasion, str) else occasion or []
+            
+            return cls(
+                id=data['id'],
+                item_type=item_type,
+                material=data.get('material', 'unknown'),
+                color=data.get('color', 'unknown'),
+                formality=formality,
+                pattern=data.get('pattern', 'solid'),
+                fit=data.get('fit', 'regular'),
+                suitable_for_weather=weather_list,
+                suitable_for_occasion=occasion_list,
+                sub_type=data.get('sub_type', ''),
+                image_link=data.get('image_link'),
+                favorite=data.get('favorite', False)
+            )
+        except Exception as e:
+            logger.error(f"Error converting wardrobe item {data.get('id', 'unknown')}: {str(e)}")
+            raise ValueError(f"Invalid wardrobe item data: {str(e)}")
+
+    def to_dict(self) -> Dict:
+        """Convert WardrobeItem to dictionary."""
+        return {
+            'id': self.id,
+            'item_type': self.item_type.value,
+            'material': self.material,
+            'color': self.color,
+            'formality': self.formality.value,
+            'pattern': self.pattern,
+            'fit': self.fit,
+            'suitable_for_weather': ','.join(self.suitable_for_weather),
+            'suitable_for_occasion': ','.join(self.suitable_for_occasion),
+            'sub_type': self.sub_type,
+            'image_link': self.image_link,
+            'favorite': self.favorite
+        }
+
+    def is_suitable_for_weather(self, weather_data: Dict) -> bool:
+        """Check if item is suitable for given weather conditions."""
+        temp = weather_data.get("temperature", 0)
+        description = weather_data.get("description", "").lower()
+        
+        # Check temperature suitability
+        if temp < 15 and "cold" not in self.suitable_for_weather:
+            return False
+        if temp > 25 and "hot" not in self.suitable_for_weather:
+            return False
+            
+        # Check weather condition suitability
+        if "rain" in description and "rainy" not in self.suitable_for_weather:
+            return False
+        if "wind" in description and "windy" not in self.suitable_for_weather:
+            return False
+            
+        return True
+
+    def is_suitable_for_occasion(self, occasion: str) -> bool:
+        """Check if item is suitable for given occasion."""
+        occasion = occasion.lower()
+        return any(
+            occ.lower() in occasion or occasion in occ.lower()
+            for occ in self.suitable_for_occasion
+        )
+
+
+
+
+def filter_suitable_items(wardrobe_items: List[WardrobeItem], 
                          weather_data: Dict, 
-                         occasion: str) -> List[Dict]:
+                         occasion: str) -> List[WardrobeItem]:
     """
     Filter wardrobe items based on weather and occasion suitability.
     
@@ -33,58 +200,16 @@ def filter_suitable_items(wardrobe_items: List[Dict],
     """
     filtered_items = []
     
-    # Parse temperature and weather conditions
-    temp = weather_data.get("temperature", 0)
-    forecast = weather_data.get("forecast", {})
-    forecast_high = forecast.get("high") if isinstance(forecast.get("high"), (int, float)) else temp
-    forecast_low = forecast.get("low") if isinstance(forecast.get("low"), (int, float)) else temp
-    description = weather_data.get("description", "").lower()
-    humidity = weather_data.get("humidity", 0)
-    wind_speed = weather_data.get("wind_speed", 0)
-    
-    # Determine weather conditions based on both current and forecast
-    is_cold = (temp < 15 or forecast_low < 15) or "cold" in description or "chilly" in description
-    is_hot = (temp > 25 or forecast_high > 25) or "hot" in description or "warm" in description
-    is_rainy = "rain" in description or "drizzle" in description
-    is_windy = wind_speed > 20 or "windy" in description
-    is_humid = humidity > 70 or "humid" in description
-    
-    # Calculate temperature range for the day
-    temp_range = forecast_high - forecast_low if isinstance(forecast_high, (int, float)) and isinstance(forecast_low, (int, float)) else 0
-    has_large_temp_range = temp_range > 10  # More than 10 degrees difference
-    
     for item in wardrobe_items:
-        # Check weather suitability
-        weather_suitable = item.get("suitable_for_weather", "").lower()
-        
-        # Skip items not suitable for current conditions
-        if (is_cold and "cold" not in weather_suitable) or (is_hot and "hot" not in weather_suitable):
-            if item.get("item_type") not in ["accessories", "shoes"]:  # Always include accessories and shoes
+        # Check weather and occasion suitability using the new methods
+        if not item.is_suitable_for_weather(weather_data):
+            if item.item_type not in [ItemType.ACCESSORY, ItemType.SHOES]:
                 continue
                 
-        # Add rain protection if needed
-        if is_rainy and item.get("item_type") == "outerwear" and "waterproof" not in weather_suitable:
-            continue
-            
-        # Add wind protection if needed
-        if is_windy and item.get("item_type") in ["top", "dress"] and "windproof" not in weather_suitable:
-            continue
-            
-        # Consider humidity for material choices
-        if is_humid and item.get("material", "").lower() in ["wool", "synthetic"]:
-            continue
-            
-        # For large temperature ranges, prioritize layering items
-        if has_large_temp_range:
-            if item.get("item_type") in ["outerwear", "top"] and "layering" not in weather_suitable:
-                continue
-                
-        # Check occasion suitability
-        occasion_suitable = item.get("suitable_for_occasion", "").lower()
-        if occasion and occasion.lower() not in occasion_suitable and "any" not in occasion_suitable:
+        if not item.is_suitable_for_occasion(occasion):
             # Allow slight mismatch for some occasions
-            if not (("formal" in occasion.lower() and "semi-formal" in occasion_suitable) or
-                    ("casual" in occasion.lower() and "smart casual" in occasion_suitable)):
+            if not (("formal" in occasion.lower() and "semi-formal" in item.suitable_for_occasion) or
+                    ("casual" in occasion.lower() and "smart casual" in item.suitable_for_occasion)):
                 continue
                 
         filtered_items.append(item)
@@ -94,7 +219,7 @@ def filter_suitable_items(wardrobe_items: List[Dict],
 
 
 
-def categorize_wardrobe(wardrobe_items: List[Dict]) -> Dict[str, List[Dict]]:
+def categorize_wardrobe(wardrobe_items: List[WardrobeItem]) -> Dict[ItemType, List[WardrobeItem]]:
     """
     Categorize wardrobe items by their type for easier outfit composition.
     
@@ -104,33 +229,10 @@ def categorize_wardrobe(wardrobe_items: List[Dict]) -> Dict[str, List[Dict]]:
     Returns:
         Dictionary with categories as keys and lists of items as values
     """
-    categories = {
-        "tops": [],
-        "bottoms": [],
-        "shoes": [],
-        "outerwear": [],
-        "accessories": [],
-        "dresses": [],
-        "suits": []
-    }
+    categories = {item_type: [] for item_type in ItemType}
     
     for item in wardrobe_items:
-        item_type = item.get("item_type", "").lower()
-        
-        if item_type == "top":
-            categories["tops"].append(item)
-        elif item_type == "bottom":
-            categories["bottoms"].append(item)
-        elif item_type == "shoes":
-            categories["shoes"].append(item)
-        elif item_type in ["jacket", "coat", "outerwear"]:
-            categories["outerwear"].append(item)
-        elif item_type == "accessory":
-            categories["accessories"].append(item)
-        elif item_type == "dress":
-            categories["dresses"].append(item)
-        elif item_type == "suit":
-            categories["suits"].append(item)
+        categories[item.item_type].append(item)
             
     return categories
 
@@ -213,7 +315,7 @@ def check_style_coherence(outfit_items: List[Dict]) -> Tuple[bool, str]:
 
 
 
-def format_wardrobe_items(wardrobe_items: List[Dict]) -> Tuple[List[str], Set[str]]:
+def format_wardrobe_items(wardrobe_items: List[WardrobeItem]) -> Tuple[List[str], Set[str]]:
     """
     Format wardrobe items for prompt and return set of IDs.
     
@@ -227,18 +329,17 @@ def format_wardrobe_items(wardrobe_items: List[Dict]) -> Tuple[List[str], Set[st
     wardrobe_ids: Set[str] = set()
     
     for item in wardrobe_items:
-        item_id = item.get('id', 'N/A')
-        wardrobe_ids.add(item_id)
+        wardrobe_ids.add(item.id)
         formatted_items.append(
-            f"Item ID: {item_id}, Type: {item.get('item_type', 'N/A')}, "
-            f"Material: {item.get('material', 'unknown')}, "
-            f"Color: {item.get('color', 'unknown')}, "
-            f"Formality: {item.get('formality', 'N/A')}, "
-            f"Pattern: {item.get('pattern', 'N/A')}, "
-            f"Fit: {item.get('fit', 'N/A')}, "
-            f"Weather Suitability: {item.get('suitable_for_weather', 'N/A')}, "
-            f"Occasion Suitability: {item.get('suitable_for_occasion', 'N/A')}, "
-            f"Sub Type: {item.get('sub_type', 'N/A')}"
+            f"Item ID: {item.id}, Type: {item.item_type.value}, "
+            f"Material: {item.material}, "
+            f"Color: {item.color}, "
+            f"Formality: {item.formality.value}, "
+            f"Pattern: {item.pattern}, "
+            f"Fit: {item.fit}, "
+            f"Weather Suitability: {', '.join(item.suitable_for_weather)}, "
+            f"Occasion Suitability: {', '.join(item.suitable_for_occasion)}, "
+            f"Sub Type: {item.sub_type}"
         )
     
     return formatted_items, wardrobe_ids
@@ -605,6 +706,7 @@ def validate_outfit(outfit_json: Dict,
     # Validate candidate item IDs and ensure correct type
     valid_outfit_items = []
     seen_ids = set()
+    seen_types = {ItemType.SHOES: 0, ItemType.BOTTOM: 0, ItemType.TOP: 0}
     
     for candidate_item in outfit_json.get("outfit_items", []):
         item_id = candidate_item.get("id")
@@ -616,14 +718,24 @@ def validate_outfit(outfit_json: Dict,
         
         # Verify item exists in wardrobe
         if item_id in wardrobe_ids:
-            # Correct the item_type if it doesn't match
-            correct_type = wardrobe_id_to_type.get(item_id)
-            if correct_type and candidate_item.get("item_type") != correct_type:
-                logger.warning(
-                    "Item %s has incorrect type %s. Correcting to %s.", 
-                    item_id, candidate_item.get("item_type"), correct_type
-                )
-                candidate_item["item_type"] = correct_type
+            # Get the correct type from the wardrobe
+            correct_type = ItemType.from_string(wardrobe_id_to_type.get(item_id, ""))
+            
+            # Check if we already have too many of this type
+            if correct_type in seen_types:
+                if correct_type == ItemType.SHOES and seen_types[correct_type] >= 1:
+                    logger.warning("Too many shoes in outfit. Skipping item %s", item_id)
+                    continue
+                elif correct_type == ItemType.BOTTOM and seen_types[correct_type] >= 1:
+                    logger.warning("Too many bottom items in outfit. Skipping item %s", item_id)
+                    continue
+                elif correct_type == ItemType.TOP and seen_types[correct_type] >= 2:
+                    logger.warning("Too many top items in outfit. Skipping item %s", item_id)
+                    continue
+            
+            # Update the item type and increment counter
+            candidate_item["item_type"] = correct_type.value
+            seen_types[correct_type] = seen_types.get(correct_type, 0) + 1
                 
             # Ensure other item fields are correct too
             original_item = wardrobe_id_to_item.get(item_id, {})
@@ -704,28 +816,45 @@ def generateOutfit(user_message: str, weather_data: Dict, wardrobe_items: List[D
         A dictionary with occasion, outfit items, and description
     """
     try:
+        # Convert wardrobe items to WardrobeItem objects with error handling
+        wardrobe_objects = []
+        invalid_items = []
+        
+        for item in wardrobe_items:
+            try:
+                wardrobe_objects.append(WardrobeItem.from_dict(item))
+            except ValueError as e:
+                logger.warning(f"Skipping invalid wardrobe item: {str(e)}")
+                invalid_items.append(item.get('id', 'unknown'))
+                continue
+        
+        if not wardrobe_objects:
+            raise ValueError("No valid wardrobe items found")
+            
+        if invalid_items:
+            logger.warning(f"Skipped {len(invalid_items)} invalid wardrobe items: {', '.join(invalid_items)}")
+        
         # Determine target occasion and configuration
         target_occ = determineOccasions(user_message)
         config = ai_config.get_occasion_config(target_occ)
         
         # Filter wardrobe items based on suitability
-        filtered_items = filter_suitable_items(wardrobe_items, weather_data, target_occ)
+        filtered_items = filter_suitable_items(wardrobe_objects, weather_data, target_occ)
         
         # If too few items remain after filtering, use the original list
         if len(filtered_items) < 10:
             logger.info("Too few items after filtering (%d). Using original wardrobe.", len(filtered_items))
-            filtered_items = wardrobe_items
+            filtered_items = wardrobe_objects
         
         # Ensure we have at least one item of each required type
         item_types_available = {}
         for item in filtered_items:
-            item_type = item.get("item_type", "").lower()
-            if item_type not in item_types_available:
-                item_types_available[item_type] = []
-            item_types_available[item_type].append(item)
+            if item.item_type not in item_types_available:
+                item_types_available[item.item_type] = []
+            item_types_available[item.item_type].append(item)
         
         # Check for required types
-        required_types = ["top", "bottom", "shoes"]
+        required_types = [ItemType.TOP, ItemType.BOTTOM, ItemType.SHOES]
         missing_types = []
         
         for req_type in required_types:
@@ -733,10 +862,10 @@ def generateOutfit(user_message: str, weather_data: Dict, wardrobe_items: List[D
                 missing_types.append(req_type)
                 
         if missing_types:
-            logger.warning("Missing required item types: %s. Adding from original wardrobe.", ", ".join(missing_types))
-            for item in wardrobe_items:
-                item_type = item.get("item_type", "").lower()
-                if item_type in missing_types and item not in filtered_items:
+            logger.warning("Missing required item types: %s. Adding from original wardrobe.", 
+                          ", ".join(t.value for t in missing_types))
+            for item in wardrobe_objects:
+                if item.item_type in missing_types and item not in filtered_items:
                     filtered_items.append(item)
         
         # Format wardrobe items
@@ -750,7 +879,7 @@ def generateOutfit(user_message: str, weather_data: Dict, wardrobe_items: List[D
         categorized = categorize_wardrobe(filtered_items)
         
         # Add type counts to the prompt
-        type_counts = {item_type: len(items) for item_type, items in categorized.items() if items}
+        type_counts = {item_type.value: len(items) for item_type, items in categorized.items() if items}
         type_counts_str = ", ".join(f"{count} {item_type}" for item_type, count in type_counts.items())
         
         # Build the prompt with explicit guidance about required item types
@@ -789,10 +918,17 @@ def generateOutfit(user_message: str, weather_data: Dict, wardrobe_items: List[D
         elif "```" in generated:
             generated = generated.split("```")[1].strip()
         
-        outfit_json = json.loads(generated)
+        try:
+            outfit_json = json.loads(generated)
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse LLM output as JSON: {str(e)}\nOutput: {generated}")
+            raise ValueError("Failed to generate valid outfit JSON")
         
-        # Validate and enhance outfit, passing in original wardrobe_items for type verification
-        validated_outfit = validate_outfit(outfit_json, wardrobe_ids, target_occ, wardrobe_items)
+        # Convert outfit items back to dictionaries for validation
+        outfit_items_dict = [item.to_dict() for item in filtered_items]
+        
+        # Validate and enhance outfit
+        validated_outfit = validate_outfit(outfit_json, wardrobe_ids, target_occ, outfit_items_dict)
         
         # Double check composition requirements are met
         valid_composition, composition_reason, item_counts = validate_outfit_composition(validated_outfit.get("outfit_items", []))
@@ -822,7 +958,7 @@ def generateOutfit(user_message: str, weather_data: Dict, wardrobe_items: List[D
                 
                 try:
                     retry_outfit_json = json.loads(generated)
-                    retry_validated_outfit = validate_outfit(retry_outfit_json, wardrobe_ids, target_occ, wardrobe_items)
+                    retry_validated_outfit = validate_outfit(retry_outfit_json, wardrobe_ids, target_occ, outfit_items_dict)
                     
                     # Check if the retry fixed the issues
                     retry_valid, retry_reason, _ = validate_outfit_composition(retry_validated_outfit.get("outfit_items", []))
