@@ -157,19 +157,48 @@ class WardrobeItem:
     def is_suitable_for_weather(self, weather_data: Dict) -> bool:
         """Check if item is suitable for given weather conditions."""
         temp = weather_data.get("temperature", 0)
+        feels_like = weather_data.get("feels_like", temp)
         description = weather_data.get("description", "").lower()
+        humidity = weather_data.get("humidity", 0)
+        wind_speed = weather_data.get("wind_speed", 0)
         
-        # Check temperature suitability
-        if temp < 15 and "cold" not in self.suitable_for_weather:
+        # Use feels_like temperature for more accurate comfort assessment
+        effective_temp = feels_like
+        
+        # More granular temperature ranges
+        if effective_temp < 10 and "very cold" not in self.suitable_for_weather:
             return False
-        if temp > 25 and "hot" not in self.suitable_for_weather:
+        elif effective_temp < 15 and "cold" not in self.suitable_for_weather:
+            return False
+        elif effective_temp > 30 and "very hot" not in self.suitable_for_weather:
+            return False
+        elif effective_temp > 25 and "hot" not in self.suitable_for_weather:
             return False
             
-        # Check weather condition suitability
-        if "rain" in description and "rainy" not in self.suitable_for_weather:
+        # Enhanced weather condition checks
+        if any(condition in description for condition in ["rain", "drizzle", "shower"]) and "rainy" not in self.suitable_for_weather:
             return False
-        if "wind" in description and "windy" not in self.suitable_for_weather:
+        if any(condition in description for condition in ["snow", "sleet", "flurries"]) and "snowy" not in self.suitable_for_weather:
             return False
+        if wind_speed > 20 or "wind" in description:
+            if "windy" not in self.suitable_for_weather and not any(material in self.material.lower() for material in ["windproof", "wind-resistant"]):
+                return False
+                
+        # Humidity-based checks
+        if humidity > 70 and "humid" not in self.suitable_for_weather:
+            if not any(material in self.material.lower() for material in ["cotton", "linen", "breathable", "moisture-wicking"]):
+                return False
+                
+        # Check forecast if available
+        forecast = weather_data.get("forecast", {})
+        if forecast:
+            forecast_high = forecast.get("high", temp)
+            forecast_low = forecast.get("low", temp)
+            
+            # If there's a significant temperature range, check if item can handle both extremes
+            if forecast_high - forecast_low > 10:
+                if not any(condition in self.suitable_for_weather for condition in ["layered", "versatile"]):
+                    return False
             
         return True
 
@@ -379,6 +408,7 @@ def build_prompt(user_message: str,
     
     # Build comprehensive weather guidance
     temp = weather_data.get("temperature", 0)
+    feels_like = weather_data.get("feels_like", temp)
     forecast = weather_data.get("forecast", {})
     forecast_high = forecast.get("high", temp)
     forecast_low = forecast.get("low", temp)
@@ -390,34 +420,105 @@ def build_prompt(user_message: str,
     
     # Temperature range guidance
     temp_range = forecast_high - forecast_low if forecast_high and forecast_low else 0
-    if temp_range > 10:
+    if temp_range > 15:
         weather_guidance.append(
             f"Temperature will vary significantly today ({temp_range}°C range from {forecast_low}°C to {forecast_high}°C). "
-            "Prioritize layering pieces that can be easily added or removed."
+            "Prioritize versatile, layered pieces that can be easily added or removed throughout the day."
+        )
+    elif temp_range > 10:
+        weather_guidance.append(
+            f"Temperature will vary moderately today ({temp_range}°C range from {forecast_low}°C to {forecast_high}°C). "
+            "Consider items that can be layered or adjusted for comfort."
         )
     
-    # Current temperature guidance
-    if temp < 15 or "cold" in description:
-        weather_guidance.append("Current conditions are cold. Prioritize warmth with appropriate layers and outerwear.")
-    elif temp > 25 or "hot" in description:
-        weather_guidance.append("Current conditions are hot. Prioritize breathable materials and lighter clothing.")
+    # Current temperature guidance with feels-like consideration
+    if feels_like < 10 or "very cold" in description:
+        weather_guidance.append(
+            "Current conditions are very cold. Prioritize thermal layers, insulated outerwear, and warm accessories. "
+            "Consider materials like wool, fleece, or thermal fabrics."
+        )
+    elif feels_like < 15 or "cold" in description:
+        weather_guidance.append(
+            "Current conditions are cold. Prioritize warmth with appropriate layers and outerwear. "
+            "Consider materials that provide good insulation."
+        )
+    elif feels_like > 30 or "very hot" in description:
+        weather_guidance.append(
+            "Current conditions are very hot. Prioritize lightweight, breathable materials and minimal layers. "
+            "Consider moisture-wicking fabrics and loose-fitting items."
+        )
+    elif feels_like > 25 or "hot" in description:
+        weather_guidance.append(
+            "Current conditions are hot. Prioritize breathable materials and lighter clothing. "
+            "Consider natural fibers like cotton or linen."
+        )
     
     # Forecast-specific guidance
     if forecast_high and forecast_low:
-        if forecast_high > 25:
-            weather_guidance.append("It will get quite warm later. Include items that can be easily removed.")
-        if forecast_low < 15:
-            weather_guidance.append("It will get cold later. Include items that can be easily added for warmth.")
+        if forecast_high > 35:
+            weather_guidance.append(
+                "It will get very hot later. Avoide multiple layers and prioritize breathable materials. Avoid sweatshirts and sweaters."
+            )
+        elif forecast_high > 30:
+            weather_guidance.append(
+                "It will get quite hot later. Include items that can be easily removed and prioritize breathable materials. Avoid sweatshirts and sweaters."
+            )
+        elif forecast_high > 25:
+            weather_guidance.append(
+                "It will get quite warm later. Include items that can be easily removed or adjusted."
+            )
+        if forecast_low < 10:
+            weather_guidance.append(
+                "It will get very cold later. Include items that can be easily added for warmth, such as thermal layers or insulated outerwear."
+            )
+        elif forecast_low < 15:
+            weather_guidance.append(
+                "It will get cold later. Include items that can be easily added for warmth."
+            )
     
-    # Additional weather conditions
-    if "rain" in description or "drizzle" in description:
-        weather_guidance.append("Include waterproof or water-resistant outerwear for rain protection.")
+    # Enhanced weather conditions guidance
+    if any(condition in description for condition in ["rain", "drizzle", "shower"]):
+        weather_guidance.append(
+            "Include waterproof or water-resistant outerwear and footwear. "
+            "Consider quick-drying materials and avoid fabrics that absorb water easily."
+        )
         
-    if wind_speed > 20 or "windy" in description:
-        weather_guidance.append("Consider wind-resistant layers and secure accessories.")
+    if any(condition in description for condition in ["snow", "sleet", "flurries"]):
+        weather_guidance.append(
+            "Include insulated, waterproof outerwear and footwear. "
+            "Consider thermal layers and materials that provide good insulation."
+        )
         
-    if humidity > 70 or "humid" in description:
-        weather_guidance.append("Choose moisture-wicking fabrics and avoid heavy materials.")
+    if wind_speed > 30 or "strong wind" in description:
+        weather_guidance.append(
+            "Strong winds expected. Prioritize wind-resistant outerwear and secure accessories. "
+            "Consider materials that provide wind protection."
+        )
+    elif wind_speed > 20 or "windy" in description:
+        weather_guidance.append(
+            "Windy conditions expected. Consider wind-resistant layers and secure accessories."
+        )
+        
+    if humidity > 80 or "very humid" in description:
+        weather_guidance.append(
+            "Very humid conditions. Choose moisture-wicking fabrics and avoid heavy materials. "
+            "Consider breathable, quick-drying items."
+        )
+    elif humidity > 70 or "humid" in description:
+        weather_guidance.append(
+            "Humid conditions. Choose moisture-wicking fabrics and avoid heavy materials."
+        )
+    
+    # Add UV index guidance if available
+    uv_index = weather_data.get("uv_index", 0)
+    if uv_index > 8:
+        weather_guidance.append(
+            "Very high UV index. Include sun protection items and consider covering exposed skin."
+        )
+    elif uv_index > 6:
+        weather_guidance.append(
+            "High UV index. Consider sun protection items."
+        )
     
     weather_guidance_text = " ".join(weather_guidance) if weather_guidance else "Consider the current weather conditions when selecting items."
     
