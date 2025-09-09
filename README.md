@@ -1,4 +1,7 @@
-# AI-Wardrobe Backend
+# AI Wardrobe Backend
+
+## AI-Wardrobe Backend
+https://github.com/giuliobarde/AI-Wardrobe-Frontend
 
 ## Overview
 The AI-Wardrobe backend is built with FastAPI and provides a RESTful API for managing virtual wardrobes, user authentication, outfit generation, and AI-powered clothing recommendations. The backend uses Supabase for data storage and authentication services.
