@@ -1,6 +1,6 @@
 # AI Wardrobe Backend
 
-## AI-Wardrobe Backend
+## AI-Wardrobe Frontend
 https://github.com/giuliobarde/AI-Wardrobe-Frontend
 
 ## Overview
